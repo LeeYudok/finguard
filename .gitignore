@@ -1,1 +1,6 @@
 bin/
+
+# 시크릿 — pre-commit 게이트(.claude/hooks/pre-commit.sh)와 이중 방어
+.env
+.env.*
+!.env.example
