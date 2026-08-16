@@ -46,7 +46,7 @@ rules:
                   - pattern: $S.addBatch(String.format($FMT, ...))
               - metavariable-regex:
                   metavariable: $FMT
-                  regex: (?i).*(select|insert|update|delete|from|where)\s
+                  regex: (?is)^"?\s*(select\b.*\bfrom\b|insert\s+into\b|update\b.*\bset\b|delete\s+from\b|merge\s+into\b)
           # (2) 지역변수에 String.format 대입 후 execute
           - patterns:
               - pattern-either:
@@ -64,7 +64,7 @@ rules:
                       $S.execute($SQL);
               - metavariable-regex:
                   metavariable: $FMT
-                  regex: (?i).*(select|insert|update|delete|from|where)\s
+                  regex: (?is)^"?\s*(select\b.*\bfrom\b|insert\s+into\b|update\b.*\bset\b|delete\s+from\b|merge\s+into\b)
           # (3) execute 인자에 문자열 연결 직접 (SQL 리터럴 + 변수)
           - patterns:
               - pattern-either:
@@ -74,7 +74,7 @@ rules:
                   - pattern: $S.addBatch($LIT + $X)
               - metavariable-regex:
                   metavariable: $LIT
-                  regex: (?i)"\s*(select|insert|update|delete).*
+                  regex: (?is)^"\s*(select\b.*\bfrom\b|insert\s+into\b|update\b.*\bset\b|delete\s+from\b|merge\s+into\b)
           # (4) 지역변수에 문자열 연결 대입 후 execute
           - patterns:
               - pattern-either:
@@ -92,7 +92,7 @@ rules:
                       $S.execute($SQL);
               - metavariable-regex:
                   metavariable: $LIT
-                  regex: (?i)"\s*(select|insert|update|delete).*
+                  regex: (?is)^"\s*(select\b.*\bfrom\b|insert\s+into\b|update\b.*\bset\b|delete\s+from\b|merge\s+into\b)
 
   - id: finguard.java.hardcoded-secret
     languages: [regex]
