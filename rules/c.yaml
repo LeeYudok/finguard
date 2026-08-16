@@ -1,0 +1,44 @@
+rules:
+  - id: finguard.c.buffer-overflow-unsafe-func
+    languages: [c]
+    severity: ERROR
+    message: 경계검사가 없는 문자열 함수 사용으로 버퍼 오버플로우가 발생할 수 있습니다. 길이 제한이 있는 대체 함수(strncpy/strncat/fgets/snprintf, scanf 폭 지정)로 변경해야 합니다.
+    metadata:
+      cwe: "CWE-120"
+      category: security
+    patterns:
+      - pattern-either:
+          - pattern: strcpy(...)
+          - pattern: strcat(...)
+          - pattern: gets(...)
+          - pattern: sprintf(...)
+          - pattern: vsprintf(...)
+          - pattern: scanf("=~/%s/", ...)
+          - pattern: fscanf($F, "=~/%s/", ...)
+          - pattern: sscanf($S, "=~/%s/", ...)
+
+  - id: finguard.c.format-string
+    languages: [c]
+    severity: ERROR
+    message: 포맷 문자열 인자로 변수가 전달되고 있습니다. 외부 입력이 섞이면 메모리 노출·변조가 가능하므로 고정 포맷 문자열("%s" 등)을 사용해야 합니다.
+    metadata:
+      cwe: "CWE-134"
+      category: security
+    patterns:
+      - pattern-either:
+          - pattern: printf($FMT)
+          - pattern: printf($FMT, ...)
+          - pattern: fprintf($F, $FMT)
+          - pattern: fprintf($F, $FMT, ...)
+          - pattern: sprintf($B, $FMT, ...)
+          - pattern: snprintf($B, $N, $FMT)
+          - pattern: snprintf($B, $N, $FMT, ...)
+          - pattern: syslog($P, $FMT)
+          - pattern: syslog($P, $FMT, ...)
+          - pattern: vprintf($FMT, ...)
+      - pattern-not: printf("...", ...)
+      - pattern-not: fprintf($F, "...", ...)
+      - pattern-not: sprintf($B, "...", ...)
+      - pattern-not: snprintf($B, $N, "...", ...)
+      - pattern-not: syslog($P, "...", ...)
+      - pattern-not: vprintf("...", ...)

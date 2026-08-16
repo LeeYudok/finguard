@@ -1,0 +1,107 @@
+rules:
+  - id: finguard.python.hardcoded-secret
+    languages: [regex]
+    severity: ERROR
+    message: 소스코드에 비밀정보(비밀번호·API 키·토큰)가 하드코드되어 있습니다.
+    paths:
+      include: ["*.py"]
+      exclude: ["test_*.py", "*_test.py", "conftest.py"]
+    pattern-regex: '(?i)\b\w*(password|passwd|secret|apikey|api_key|appsecret)\w*\s*=\s*(?:"(?![A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+")(?![a-z]+(?:_[a-z]+)+")[^"%/{][^"]{7,}"|''(?![A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+'')(?![a-z]+(?:_[a-z]+)+'')[^''%/{][^'']{7,}'')'
+
+  - id: finguard.python.weak-hash
+    languages: [python]
+    severity: WARNING
+    message: 취약한 해시 알고리즘(MD5/SHA-1)을 사용하고 있습니다. SHA-256 이상으로 교체해야 합니다.
+    paths:
+      exclude: ["test_*.py", "*_test.py"]
+    patterns:
+      - pattern-either:
+          - pattern: hashlib.md5(...)
+          - pattern: hashlib.sha1(...)
+          - pattern: hashlib.new("md5", ...)
+          - pattern: hashlib.new("sha1", ...)
+      - pattern-not: hashlib.md5(..., usedforsecurity=False)
+      - pattern-not: hashlib.sha1(..., usedforsecurity=False)
+
+  - id: finguard.python.http-url
+    languages: [regex]
+    severity: WARNING
+    message: 평문 HTTP URL 이 사용되고 있습니다. TLS(https) 로 전환해야 합니다.
+    paths:
+      include: ["*.py"]
+      exclude: ["test_*.py", "*_test.py"]
+    pattern-regex: '(?im)^(?![ \t]*#).*["'']http://(?!localhost|127\.0\.0\.1|0\.0\.0\.0|schemas\.|xmlns|(?:www\.)?w3\.org|(?:[\w.]+\.)?apache\.org|[\w.]*xml\.org|(?:www\.)?example\.(?:com|org)|(?:www\.)?unicode\.org|purl\.org|iana\.org|ietf\.org|json-schema\.org)[^"'']+["'']'
+
+  # 문자열 조립 SQL — f-string / % / .format 으로 만든 문장을 그대로 execute 에 전달.
+  # 바인딩 파라미터(execute(sql, params)) 사용은 잡지 않는다.
+  - id: finguard.python.sql-format
+    languages: [python]
+    severity: ERROR
+    message: 문자열 포매팅으로 조립한 SQL 을 실행하고 있습니다. 바인딩 파라미터를 사용해야 합니다.
+    paths:
+      exclude: ["test_*.py", "*_test.py"]
+    pattern-either:
+      - pattern: $CUR.execute(f"...", ...)
+      - pattern: $CUR.execute($S.format(...), ...)
+      - pattern: $CUR.execute($S % $A, ...)
+      - pattern: $CUR.executemany(f"...", ...)
+      - pattern: $CUR.executemany($S.format(...), ...)
+      - pattern: $CUR.executemany($S % $A, ...)
+
+  # shell=True + 비상수 명령 문자열. 상수 리터럴만으로 실행하는 경우는 잡지 않는다.
+  - id: finguard.python.subprocess-shell
+    languages: [python]
+    severity: WARNING
+    message: 변수로 조립된 명령을 shell=True(또는 os.system)로 실행합니다. 외부 입력이 닿으면 명령어 삽입으로 이어집니다. 인자 리스트 + shell=False 로 전환해야 합니다.
+    paths:
+      exclude: ["test_*.py", "*_test.py"]
+    patterns:
+      - pattern-either:
+          - pattern: subprocess.run($CMD, ..., shell=True, ...)
+          - pattern: subprocess.Popen($CMD, ..., shell=True, ...)
+          - pattern: subprocess.call($CMD, ..., shell=True, ...)
+          - pattern: subprocess.check_call($CMD, ..., shell=True, ...)
+          - pattern: subprocess.check_output($CMD, ..., shell=True, ...)
+          - pattern: os.system($CMD)
+          - pattern: os.popen($CMD)
+      - metavariable-pattern:
+          metavariable: $CMD
+          patterns:
+            - pattern-not: '"..."'
+
+  - id: finguard.python.eval-exec
+    languages: [python]
+    severity: ERROR
+    message: eval/exec 에 동적으로 조립된 문자열이 전달됩니다. 외부 입력이 닿으면 임의 코드 실행으로 이어집니다.
+    paths:
+      exclude: ["test_*.py", "*_test.py"]
+    patterns:
+      - pattern-either:
+          - pattern: eval($X)
+          - pattern: exec($X)
+      - metavariable-pattern:
+          metavariable: $X
+          patterns:
+            - pattern-not: '"..."'
+
+  - id: finguard.python.tls-verify-disabled
+    languages: [python]
+    severity: ERROR
+    message: TLS 인증서 검증을 비활성화하고 있습니다(verify=False / 미검증 컨텍스트). 중간자 공격(MITM)에 노출됩니다.
+    paths:
+      exclude: ["test_*.py", "*_test.py"]
+    pattern-either:
+      - pattern: requests.$F(..., verify=False, ...)
+      - pattern: ssl._create_unverified_context(...)
+
+  - id: finguard.python.yaml-unsafe-load
+    languages: [python]
+    severity: WARNING
+    message: yaml.load 를 안전하지 않은 로더로 사용하고 있습니다. 신뢰할 수 없는 입력이면 객체 역직렬화로 임의 코드가 실행됩니다. yaml.safe_load 를 사용해야 합니다.
+    paths:
+      exclude: ["test_*.py", "*_test.py"]
+    pattern-either:
+      - pattern: yaml.load($X)
+      - pattern: yaml.load($X, Loader=yaml.Loader)
+      - pattern: yaml.load($X, Loader=yaml.UnsafeLoader)
+      - pattern: yaml.unsafe_load(...)

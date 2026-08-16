@@ -1,0 +1,158 @@
+rules:
+  - id: finguard.ts.dangerously-set-inner-html
+    languages: [regex]
+    severity: WARNING
+    message: dangerouslySetInnerHTML 은 XSS 위험이 있습니다. 신뢰할 수 없는 입력이 섞이지 않는지 확인해야 합니다.
+    paths:
+      include: ["*.tsx", "*.jsx"]
+    pattern-regex: '\bdangerouslySetInnerHTML\b'
+
+  - id: finguard.ts.eval
+    languages: [regex]
+    severity: ERROR
+    message: eval/new Function 은 임의 코드 실행으로 이어질 수 있습니다.
+    paths:
+      include: ["*.ts", "*.tsx", "*.js", "*.jsx"]
+    pattern-regex: '\b(eval|new\s+Function)\s*\('
+
+  - id: finguard.ts.hardcoded-secret
+    languages: [regex]
+    severity: ERROR
+    message: 소스코드에 비밀정보(비밀번호·API 키·토큰)가 하드코드되어 있습니다.
+    paths:
+      include: ["*.ts", "*.tsx", "*.js", "*.jsx"]
+    pattern-regex: '(?i)\b(const|let|var)\s+\w*(password|passwd|secret|apikey|api_key)\w*\s*=\s*["''](?![A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+")(?![a-z]+(?:_[a-z]+)+")\S{8,}["'']'
+
+  - id: finguard.ts.http-url
+    languages: [regex]
+    severity: WARNING
+    message: 평문 HTTP URL 이 사용되고 있습니다. TLS(https) 로 전환해야 합니다.
+    paths:
+      include: ["*.ts", "*.tsx", "*.js", "*.jsx"]
+    pattern-regex: '(?im)^(?![ \t]*(?://|\*|/\*)).*["'']http://(?!localhost|127\.0\.0\.1|0\.0\.0\.0|schemas\.|xmlns|(?:www\.)?w3\.org|(?:[\w.]+\.)?apache\.org|[\w.]*xml\.org|java\.sun\.com|(?:www\.)?example\.(?:com|org)|(?:www\.)?unicode\.org|(?:www\.)?jflex\.de|purl\.org|iana\.org|ietf\.org|slf4j\.org|json-schema\.org)[^"'']+["'']'
+
+  - id: finguard.ts.os-command-injection
+    languages: [ts, js]
+    severity: ERROR
+    message: 외부 입력이 OS 명령 실행 함수로 전달되고 있습니다. 명령어 문자열 조합 대신 execFile/spawn 의 인자 배열을 사용해야 합니다.
+    metadata:
+      cwe: "CWE-78"
+      category: security
+    mode: taint
+    pattern-sources:
+      - pattern-either:
+          - pattern: $REQ.query
+          - pattern: $REQ.body
+          - pattern: $REQ.params
+          - pattern: $REQ.headers
+    pattern-sinks:
+      - patterns:
+          - pattern-either:
+              - pattern: $CP.exec($CMD, ...)
+              - pattern: $CP.execSync($CMD, ...)
+              - pattern: $CP.spawn($CMD, ...)
+              - pattern: $CP.spawnSync($CMD, ...)
+              - pattern: exec($CMD, ...)
+              - pattern: execSync($CMD, ...)
+              - pattern: spawn($CMD, ...)
+          - focus-metavariable: $CMD
+
+  - id: finguard.ts.open-redirect
+    languages: [ts, js]
+    severity: WARNING
+    message: 외부 입력이 리다이렉트 대상 URL 로 사용되고 있습니다. 허용 목록(allowlist) 또는 내부 경로로 제한해야 합니다.
+    metadata:
+      cwe: "CWE-601"
+      category: security
+    mode: taint
+    pattern-sources:
+      - pattern-either:
+          - pattern: $REQ.query
+          - pattern: $REQ.body
+          - pattern: $REQ.params
+          - pattern: $REQ.headers
+    pattern-sinks:
+      - patterns:
+          - pattern-either:
+              - pattern: $RES.redirect($URL)
+              - pattern: $RES.redirect($CODE, $URL)
+          - focus-metavariable: $URL
+
+  - id: finguard.ts.ssrf
+    languages: [ts, js]
+    severity: WARNING
+    message: 외부 입력이 서버 측 HTTP 요청 대상 URL 로 사용되고 있습니다(SSRF). 호스트 허용 목록으로 제한해야 합니다.
+    metadata:
+      cwe: "CWE-918"
+      category: security
+    mode: taint
+    pattern-sources:
+      - pattern-either:
+          - pattern: $REQ.query
+          - pattern: $REQ.body
+          - pattern: $REQ.params
+          - pattern: $REQ.headers
+    pattern-sinks:
+      - patterns:
+          - pattern-either:
+              - pattern: fetch($U, ...)
+              - pattern: axios($U, ...)
+              - pattern: axios.get($U, ...)
+              - pattern: axios.post($U, ...)
+              - pattern: axios.request($U, ...)
+              - pattern: http.get($U, ...)
+              - pattern: http.request($U, ...)
+              - pattern: https.get($U, ...)
+              - pattern: https.request($U, ...)
+          - focus-metavariable: $U
+
+  - id: finguard.ts.xss-innerhtml
+    languages: [ts, js]
+    severity: WARNING
+    message: DOM 에 HTML 문자열을 직접 주입하고 있습니다(XSS). textContent 사용 또는 출력값 이스케이프/살균이 필요합니다.
+    metadata:
+      cwe: "CWE-79"
+      category: security
+    patterns:
+      - pattern-either:
+          - pattern: $EL.innerHTML = $X
+          - pattern: $EL.outerHTML = $X
+          - pattern: $EL.insertAdjacentHTML($POS, $X)
+          - pattern: document.write($X)
+          - pattern: document.writeln($X)
+      - pattern-not: $EL.innerHTML = "..."
+      - pattern-not: $EL.outerHTML = "..."
+      - pattern-not: $EL.insertAdjacentHTML($POS, "...")
+      - pattern-not: document.write("...")
+      - pattern-not: document.writeln("...")
+      - pattern-not: $EL.innerHTML = ""
+
+  - id: finguard.ts.path-traversal
+    languages: [ts, js]
+    severity: ERROR
+    message: 외부 입력이 파일 경로로 사용되고 있습니다(경로 조작). path.basename 등으로 정규화하고 기준 디렉터리 밖 접근을 차단해야 합니다.
+    metadata:
+      cwe: "CWE-22"
+      category: security
+    mode: taint
+    pattern-sources:
+      - pattern-either:
+          - pattern: $REQ.query
+          - pattern: $REQ.body
+          - pattern: $REQ.params
+          - pattern: $REQ.headers
+    pattern-sanitizers:
+      - pattern: path.basename(...)
+    pattern-sinks:
+      - patterns:
+          - pattern-either:
+              - pattern: $FS.readFile($P, ...)
+              - pattern: $FS.readFileSync($P, ...)
+              - pattern: $FS.writeFile($P, ...)
+              - pattern: $FS.writeFileSync($P, ...)
+              - pattern: $FS.createReadStream($P, ...)
+              - pattern: $RES.sendFile($P, ...)
+              - pattern: readFile($P, ...)
+              - pattern: readFileSync($P, ...)
+              - pattern: createReadStream($P, ...)
+          - focus-metavariable: $P

@@ -1,0 +1,48 @@
+rules:
+  - id: finguard.shell.hardcoded-secret
+    languages: [regex]
+    severity: ERROR
+    message: 셸 스크립트에 비밀정보(비밀번호·API 키·토큰)가 하드코드되어 있습니다. 환경변수 주입 또는 시크릿 저장소를 사용해야 합니다.
+    paths:
+      include: ["*.sh", "*.bash", "*.zsh"]
+    pattern-regex: '(?im)^\s*(?:export\s+)?\w*(password|passwd|secret|apikey|api_key|token)\w*=["'']?(?!\$)(?![A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+["'']?\s*$)(?![a-z]+(?:_[a-z]+)+["'']?\s*$)[^"''\s#$][^"''\s#]{7,}'
+
+  - id: finguard.shell.curl-insecure
+    languages: [regex]
+    severity: ERROR
+    message: curl 이 -k/--insecure 로 TLS 인증서 검증을 끄고 있습니다. 중간자 공격(MITM)에 노출됩니다.
+    paths:
+      include: ["*.sh", "*.bash", "*.zsh"]
+    pattern-regex: '(?m)^(?!\s*#)[^\n]*\bcurl\b[^|\n]*(?:\s-[A-Za-z]*k[A-Za-z]*\b|\s--insecure\b)'
+
+  - id: finguard.shell.wget-insecure
+    languages: [regex]
+    severity: ERROR
+    message: wget 이 --no-check-certificate 로 TLS 인증서 검증을 끄고 있습니다. 중간자 공격(MITM)에 노출됩니다.
+    paths:
+      include: ["*.sh", "*.bash", "*.zsh"]
+    pattern-regex: '(?m)^(?!\s*#)[^\n]*\bwget\s[^|\n]*--no-check-certificate\b'
+
+  - id: finguard.shell.curl-pipe-shell
+    languages: [regex]
+    severity: WARNING
+    message: 원격에서 내려받은 스크립트를 무결성 검증 없이 바로 셸로 실행합니다. 다운로드 후 체크섬 검증을 거쳐 실행해야 합니다.
+    paths:
+      include: ["*.sh", "*.bash", "*.zsh"]
+    pattern-regex: '(?m)^(?!\s*#)[^\n]*\b(?:curl|wget)\b[^|\n]*\|\s*(?:sudo\s+)?(?:bash|sh|zsh|dash)\b'
+
+  - id: finguard.shell.eval-var
+    languages: [regex]
+    severity: WARNING
+    message: eval 에 변수 확장이 포함되어 있습니다. 변수에 외부 입력이 닿으면 임의 명령 실행으로 이어집니다.
+    paths:
+      include: ["*.sh", "*.bash", "*.zsh"]
+    pattern-regex: '(?m)^(?!\s*#).*\beval\s+[^\n#]*\$'
+
+  - id: finguard.shell.http-url
+    languages: [regex]
+    severity: WARNING
+    message: 평문 HTTP URL 이 사용되고 있습니다. TLS(https) 로 전환해야 합니다.
+    paths:
+      include: ["*.sh", "*.bash", "*.zsh"]
+    pattern-regex: '(?im)^(?!\s*#).*\bhttp://(?!localhost|127\.0\.0\.1|0\.0\.0\.0|schemas\.|xmlns|(?:www\.)?w3\.org|(?:www\.)?example\.(?:com|org)|purl\.org|iana\.org|ietf\.org)[^\s"'']+'

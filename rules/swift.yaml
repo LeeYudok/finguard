@@ -1,0 +1,81 @@
+rules:
+  - id: finguard.swift.hardcoded-secret
+    languages: [regex]
+    severity: ERROR
+    message: 소스코드에 비밀정보(비밀번호·API 키·토큰)가 하드코드되어 있습니다.
+    paths:
+      include: ["*.swift"]
+    pattern-regex: '(?i)(let|var)\s+\w*(password|passwd|secret|api_?key|token|credential)\w*\s*=\s*"(?![A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+")(?![a-z]+(?:_[a-z]+)+")[^"]{4,}"'
+
+  - id: finguard.swift.http-url
+    languages: [regex]
+    severity: WARNING
+    message: 평문 HTTP URL 이 사용되고 있습니다. TLS(https) 로 전환해야 합니다.
+    paths:
+      include: ["*.swift"]
+    pattern-regex: '(?im)^(?![ \t]*(?://|\*|/\*)).*"http://(?!localhost|127\.0\.0\.1|0\.0\.0\.0|schemas\.|xmlns|(?:www\.)?w3\.org|(?:[\w.]+\.)?apache\.org|[\w.]*xml\.org|java\.sun\.com|(?:www\.)?example\.(?:com|org)|(?:www\.)?unicode\.org|(?:www\.)?jflex\.de|purl\.org|iana\.org|ietf\.org|slf4j\.org|json-schema\.org)[^"]+"'
+
+  - id: finguard.swift.userdefaults-sensitive
+    languages: [regex]
+    severity: ERROR
+    message: UserDefaults 에 중요정보를 평문 저장하고 있습니다. Keychain 을 사용해야 합니다.
+    paths:
+      include: ["*.swift"]
+    pattern-regex: '(?i)UserDefaults[^\n]*\.set\([^\n]*(password|passwd|token|secret|pin|cardno|card_no|accountno)'
+
+  - id: finguard.swift.uiwebview
+    languages: [regex]
+    severity: WARNING
+    message: 폐기된 UIWebView 를 사용하고 있습니다. WKWebView 로 교체해야 합니다.
+    paths:
+      include: ["*.swift"]
+    pattern-regex: '\bUIWebView\b'
+
+  - id: finguard.swift.weak-hash
+    languages: [regex]
+    severity: WARNING
+    message: 취약한 해시 알고리즘(MD5/SHA-1)을 사용하고 있습니다.
+    paths:
+      include: ["*.swift"]
+    pattern-regex: '\b(CC_MD5|CC_SHA1|Insecure\.MD5|Insecure\.SHA1)\b'
+
+  - id: finguard.swift.print-sensitive
+    languages: [regex]
+    severity: WARNING
+    message: 로그/콘솔에 중요정보가 출력될 수 있습니다.
+    paths:
+      include: ["*.swift"]
+    pattern-regex: '(?im)^(?![ \t]*(?://|\*|/\*)).*?\b(?:print|NSLog|os_log)\((?:(?:"(?:\\.|[^"\\\n])*"|[^"\n])*?(?:\b(?:password|passwd|token|secret|pin|cardno|card_no)\b|주민)|[^\n]*?\\\([^)\n]*(?:\b(?:password|passwd|token|secret|pin|cardno|card_no)\b|주민))'
+
+  - id: finguard.swift.sql-interpolation
+    languages: [regex]
+    severity: ERROR
+    message: SQL 문자열에 변수를 직접 보간(interpolation)하고 있습니다. 바인딩 파라미터를 사용해야 합니다.
+    paths:
+      include: ["*.swift"]
+    pattern-regex: '"(?i)(SELECT|INSERT|UPDATE|DELETE)\b[^"]*\\\('
+
+  - id: finguard.plist.ats-arbitrary-loads
+    languages: [regex]
+    severity: ERROR
+    message: ATS 전역 해제(NSAllowsArbitraryLoads=true)로 평문 통신이 허용됩니다.
+    paths:
+      include: ["*.plist"]
+    pattern-regex: 'NSAllowsArbitraryLoads</key>\s*<true\s*/>'
+
+  - id: finguard.swift.webview-file-access
+    languages: [regex]
+    severity: WARNING
+    message: WebView 의 파일 접근 설정이 로컬 파일 탈취에 악용될 수 있습니다.
+    paths:
+      include: ["*.swift"]
+    pattern-regex: '\b(allowFileAccessFromFileURLs|allowUniversalAccessFromFileURLs)\b'
+
+  - id: finguard.swift.insecure-trust
+    languages: [regex]
+    severity: ERROR
+    message: 서버 인증서를 검증 없이 신뢰하고 있습니다(SecTrustSetExceptions/URLCredential(trust:)). 중간자 공격(MITM)에 노출됩니다.
+    paths:
+      include: ["*.swift"]
+      exclude: ["Pods/**", "**/Pods/**", "Carthage/**", "**/Carthage/**", "Vendor/**/*Pods*"]
+    pattern-regex: '(?im)^(?![ \t]*(?://|\*)).*(?:SecTrustSetExceptions|URLCredential\(trust:)'

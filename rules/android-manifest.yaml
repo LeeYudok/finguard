@@ -1,0 +1,38 @@
+rules:
+  # 13. 디버그 가능 설정 (CWE-489)
+  - id: finguard.android.debuggable
+    languages: [regex]
+    severity: ERROR
+    message: AndroidManifest 에 android:debuggable="true" 가 설정되어 있습니다. 릴리스 빌드에서 반드시 제거해야 합니다.
+    paths:
+      include: ["AndroidManifest.xml"]
+    pattern-regex: 'android:debuggable\s*=\s*"true"'
+
+  # 14. 백업 허용 (CWE-530)
+  - id: finguard.android.allow-backup
+    languages: [regex]
+    severity: WARNING
+    message: android:allowBackup="true" 로 앱 데이터가 adb backup 으로 유출될 수 있습니다. 민감 데이터를 다루면 false 로 설정해야 합니다.
+    paths:
+      include: ["AndroidManifest.xml"]
+    pattern-regex: 'android:allowBackup\s*=\s*"true"'
+
+  # 15. 평문 트래픽 허용 (CWE-319)
+  - id: finguard.android.cleartext-traffic
+    languages: [regex]
+    severity: WARNING
+    message: android:usesCleartextTraffic="true" 로 평문 HTTP 통신이 허용됩니다. false 로 설정하거나 networkSecurityConfig 로 통제해야 합니다.
+    paths:
+      include: ["AndroidManifest.xml"]
+    pattern-regex: 'android:usesCleartextTraffic\s*=\s*"true"'
+
+  # 16. exported 컴포넌트 (CWE-926)
+  #   - android:exported="true" 신호. 권한(android:permission) 동반 여부·LAUNCHER 여부는
+  #     단일 속성 매칭으로 판별 불가 → 권고성(WARNING). 실제 노출 필요성은 수동 확인.
+  - id: finguard.android.exported-no-permission
+    languages: [regex]
+    severity: WARNING
+    message: android:exported="true" 컴포넌트가 있습니다. 외부 앱에 노출되므로 android:permission 보호 또는 exported=false 가 필요한지 확인해야 합니다.
+    paths:
+      include: ["AndroidManifest.xml"]
+    pattern-regex: 'android:exported\s*=\s*"true"'

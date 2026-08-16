@@ -1,0 +1,1125 @@
+# finguard 매핑 테이블 — Semgrep 룰ID → 금보원/개발보안가이드 근거.
+# 코멘트 근거 문구는 이 파일 값이 전부다. 임의 생성 금지.
+# kisa_item 은 docs/평가기준_웹모바일HTS_66항목.md (금보원 2026 안내서 웹·모바일·HTS 섹션 발췌)와
+# 대조해 확실한 것만 기입한다. ID·항목명은 안내서 원문 표기 그대로 쓴다.
+
+- rule_id: finguard.swift.hardcoded-secret
+  code: FIN-KEY-001
+  cwe: CWE-798
+  title: 하드코드된 중요정보
+  severity: ERROR
+  basis: 개발보안가이드 「보안기능 - 하드코드된 중요정보」
+  kisa_item: "전자금융기반시설 평가기준(2026) 웹·모바일·HTS 43 (앱 소스코드 내 운영정보 노출 방지)"
+  explain: 비밀번호·API 키·토큰이 소스코드에 문자열로 하드코드되어 있습니다. 바이너리 역공학이나 소스 유출 시 그대로 노출됩니다.
+  fix_example: |
+    ```swift
+    // Keychain 등 보호 저장소에서 로드
+    let apiKey = KeychainHelper.load(key: "api_key")
+    ```
+
+- rule_id: finguard.swift.http-url
+  code: FIN-TLS-001
+  cwe: CWE-319
+  title: 중요정보 평문 전송(HTTP)
+  severity: WARNING
+  basis: 개발보안가이드 「보안기능 - 중요정보 평문 전송」
+  kisa_item: "전자금융기반시설 평가기준(2026) 웹·모바일·HTS 65 (통신구간 암호화 적용)"
+  explain: 평문 HTTP 로 통신하면 전송 구간에서 도청·변조가 가능합니다. 금융 앱은 전 구간 TLS 가 기본입니다.
+  fix_example: |
+    ```swift
+    let url = URL(string: "https://api.example.com/v1")!
+    ```
+
+- rule_id: finguard.swift.userdefaults-sensitive
+  code: FIN-STO-001
+  cwe: CWE-922
+  title: 중요정보 평문 저장(UserDefaults)
+  severity: ERROR
+  basis: 개발보안가이드 「보안기능 - 중요정보 평문 저장」
+  kisa_item: "전자금융기반시설 평가기준(2026) 웹·모바일·HTS 26 (단말기 내 중요정보 저장 방지) / 전금감규정 제19조의2(비밀번호 보관 시 암호화)"
+  explain: UserDefaults 는 암호화되지 않은 plist 로 저장되어 탈옥/백업 추출 시 그대로 읽힙니다. 비밀번호·토큰·카드번호는 Keychain 에 저장해야 합니다.
+  fix_example: |
+    ```swift
+    // UserDefaults.standard.set(token, forKey: "auth_token")  // 금지
+    KeychainHelper.save(key: "auth_token", value: token)
+    ```
+
+- rule_id: finguard.swift.uiwebview
+  code: FIN-API-001
+  cwe: CWE-477
+  title: 폐기된 API 사용(UIWebView)
+  severity: WARNING
+  basis: 개발보안가이드 「API 오용 - 취약한 API 사용」
+  kisa_item: ""
+  explain: UIWebView 는 iOS 12 에서 폐기되었고 보안 패치가 중단되어 알려진 취약점이 방치됩니다. WKWebView 로 교체해야 합니다.
+  fix_example: |
+    ```swift
+    let webView = WKWebView(frame: .zero, configuration: WKWebViewConfiguration())
+    ```
+
+- rule_id: finguard.swift.weak-hash
+  code: FIN-CRY-001
+  cwe: CWE-328
+  title: 취약한 해시 알고리즘(MD5/SHA-1)
+  severity: WARNING
+  basis: 개발보안가이드 「보안기능 - 취약한 암호화 알고리즘 사용」
+  kisa_item: "전자금융기반시설 평가기준(2026) 웹·모바일·HTS 52 (취약한 HTTPS 암호 알고리즘 이용)"
+  explain: MD5/SHA-1 은 충돌 공격이 실증된 알고리즘으로 무결성·인증 용도로 사용할 수 없습니다. SHA-256 이상을 사용해야 합니다.
+  fix_example: |
+    ```swift
+    import CryptoKit
+    let digest = SHA256.hash(data: data)
+    ```
+
+- rule_id: finguard.swift.print-sensitive
+  code: FIN-LOG-001
+  cwe: CWE-532
+  title: 로그 중요정보 노출
+  severity: WARNING
+  basis: 개발보안가이드 「에러처리 - 오류 메시지 정보노출」
+  kisa_item: "전자금융기반시설 평가기준(2026) 웹·모바일·HTS 59 (디버그 로그 내 중요정보 노출 방지)"
+  explain: 콘솔/시스템 로그에 비밀번호·토큰 등 중요정보가 출력되면 디바이스 로그 수집 도구로 유출될 수 있습니다.
+  fix_example: |
+    ```swift
+    // print("token=\(token)")  // 금지
+    print("token 발급 완료 (길이 \(token.count))")
+    ```
+
+- rule_id: finguard.swift.sql-interpolation
+  code: FIN-SQLI-001
+  cwe: CWE-89
+  title: SQL 삽입
+  severity: ERROR
+  basis: 개발보안가이드 「입력데이터 검증 및 표현 - SQL 삽입」
+  kisa_item: "전자금융기반시설 평가기준(2026) 웹·모바일·HTS 19 (SQL Injection)"
+  explain: 사용자 입력이 문자열 보간으로 SQL 에 직접 삽입되고 있습니다. 바인딩 파라미터(?)를 사용해야 합니다.
+  fix_example: |
+    ```swift
+    let stmt = try db.prepare("SELECT * FROM user WHERE id = ?")
+    try stmt.bind(userId)
+    ```
+
+- rule_id: finguard.plist.ats-arbitrary-loads
+  code: FIN-TLS-002
+  cwe: CWE-319
+  title: ATS 전역 해제
+  severity: ERROR
+  basis: 개발보안가이드 「보안기능 - 중요정보 평문 전송」
+  kisa_item: "전자금융기반시설 평가기준(2026) 웹·모바일·HTS 65 (통신구간 암호화 적용)"
+  explain: NSAllowsArbitraryLoads=true 는 앱 전체에서 평문 HTTP 를 허용해 iOS 의 전송보안(ATS)을 무력화합니다. 예외가 필요하면 도메인 단위 예외로 좁혀야 합니다.
+  fix_example: |
+    ```xml
+    <key>NSAppTransportSecurity</key>
+    <dict>
+      <key>NSExceptionDomains</key>
+      <dict><!-- 필요한 도메인만 최소 예외 --></dict>
+    </dict>
+    ```
+
+- rule_id: finguard.swift.webview-file-access
+  code: FIN-API-002
+  cwe: CWE-749
+  title: WebView 파일 접근 허용
+  severity: WARNING
+  basis: 개발보안가이드 「API 오용 - 위험한 기능 노출」
+  kisa_item: ""
+  explain: WebView 에서 file:// 접근을 허용하면 XSS 와 결합해 로컬 파일(쿠키·토큰 저장소) 탈취로 이어질 수 있습니다.
+  fix_example: |
+    ```swift
+    // preferences.setValue(true, forKey: "allowFileAccessFromFileURLs")  // 금지
+    // 기본값(비허용) 유지
+    ```
+
+- rule_id: finguard.go.sql-sprintf
+  code: FIN-SQLI-002
+  cwe: CWE-89
+  title: SQL 삽입(문자열 조립)
+  severity: ERROR
+  basis: 개발보안가이드 「입력데이터 검증 및 표현 - SQL 삽입」
+  kisa_item: "전자금융기반시설 평가기준(2026) 웹·모바일·HTS 19 (SQL Injection)"
+  explain: 외부 입력(요청 파라미터 등)이 검증 없이 SQL 문 조립에 도달하고 있습니다(오염 추적 검출). 바인딩 파라미터($1, ?)를 사용해야 합니다.
+  fix_example: |
+    ```go
+    row := db.QueryRow("SELECT name FROM users WHERE id = $1", userID)
+    ```
+
+- rule_id: finguard.go.hardcoded-secret
+  code: FIN-KEY-002
+  cwe: CWE-798
+  title: 하드코드된 중요정보(Go)
+  severity: ERROR
+  basis: 개발보안가이드 「보안기능 - 하드코드된 중요정보」
+  kisa_item: "전자금융기반시설 평가기준(2026) 웹·모바일·HTS 43 (앱 소스코드 내 운영정보 노출 방지)"
+  explain: 비밀번호·API 키·토큰이 소스코드에 문자열로 하드코드되어 있습니다. 소스 유출·바이너리 분석 시 그대로 노출됩니다.
+  fix_example: |
+    ```go
+    apiKey := os.Getenv("API_KEY") // 환경변수 또는 시크릿 저장소에서 로드
+    ```
+
+- rule_id: finguard.go.weak-crypto
+  code: FIN-CRY-002
+  cwe: CWE-327
+  title: 취약한 암호 알고리즘(Go)
+  severity: WARNING
+  basis: 개발보안가이드 「보안기능 - 취약한 암호화 알고리즘 사용」
+  kisa_item: "전자금융기반시설 평가기준(2026) 웹·모바일·HTS 52 (취약한 HTTPS 암호 알고리즘 이용)"
+  explain: MD5/SHA-1/DES/RC4 는 충돌·해독이 실증된 알고리즘입니다. SHA-256 이상, AES-GCM 등으로 교체해야 합니다.
+  fix_example: |
+    ```go
+    import "crypto/sha256"
+    sum := sha256.Sum256(data)
+    ```
+
+- rule_id: finguard.go.tls-skip-verify
+  code: FIN-TLS-003
+  cwe: CWE-295
+  title: TLS 인증서 검증 비활성화
+  severity: ERROR
+  basis: 개발보안가이드 「보안기능 - 부적절한 인증서 유효성 검증」
+  kisa_item: "전자금융기반시설 평가기준(2026) 웹·모바일·HTS 47 (서버 인증서 무결성 검증)"
+  explain: InsecureSkipVerify=true 는 서버 인증서 검증을 건너뛰어 중간자 공격(MITM)에 그대로 노출됩니다.
+  fix_example: |
+    ```go
+    // TLSClientConfig: &tls.Config{InsecureSkipVerify: true}  // 금지
+    // 사설 CA 는 RootCAs 에 등록해서 검증을 유지한다
+    ```
+
+- rule_id: finguard.go.http-url
+  code: FIN-TLS-004
+  cwe: CWE-319
+  title: 중요정보 평문 전송(Go HTTP)
+  severity: WARNING
+  basis: 개발보안가이드 「보안기능 - 중요정보 평문 전송」
+  kisa_item: "전자금융기반시설 평가기준(2026) 웹·모바일·HTS 65 (통신구간 암호화 적용)"
+  explain: 평문 HTTP 로 통신하면 전송 구간에서 도청·변조가 가능합니다. 전 구간 TLS 가 기본입니다.
+  fix_example: |
+    ```go
+    resp, err := http.Get("https://api.example.com/v1")
+    ```
+
+- rule_id: finguard.ts.dangerously-set-inner-html
+  code: FIN-XSS-001
+  cwe: CWE-79
+  title: XSS 위험(dangerouslySetInnerHTML)
+  severity: WARNING
+  basis: 개발보안가이드 「입력데이터 검증 및 표현 - 크로스사이트 스크립트」
+  kisa_item: "전자금융기반시설 평가기준(2026) 웹·모바일·HTS 58 (크로스 사이트 스크립팅 (XSS))"
+  explain: dangerouslySetInnerHTML 에 신뢰할 수 없는 입력이 들어가면 스크립트가 그대로 실행됩니다. 꼭 필요하면 새니타이즈를 거쳐야 합니다.
+  fix_example: |
+    ```tsx
+    <div dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(html) }} />
+    ```
+
+- rule_id: finguard.ts.eval
+  code: FIN-INJ-001
+  cwe: CWE-95
+  title: 코드 삽입(eval)
+  severity: ERROR
+  basis: 개발보안가이드 「입력데이터 검증 및 표현 - 코드 삽입」
+  kisa_item: ""
+  explain: eval/new Function 에 외부 입력이 닿으면 임의 코드 실행으로 이어집니다. JSON.parse 등 안전한 대체 수단을 사용해야 합니다.
+  fix_example: |
+    ```ts
+    const data = JSON.parse(input); // eval(input) 금지
+    ```
+
+- rule_id: finguard.ts.hardcoded-secret
+  code: FIN-KEY-003
+  cwe: CWE-798
+  title: 하드코드된 중요정보(TS/JS)
+  severity: ERROR
+  basis: 개발보안가이드 「보안기능 - 하드코드된 중요정보」
+  kisa_item: "전자금융기반시설 평가기준(2026) 웹·모바일·HTS 43 (앱 소스코드 내 운영정보 노출 방지)"
+  explain: 비밀번호·API 키가 프론트엔드 소스에 하드코드되어 있습니다. 번들은 사용자에게 그대로 배포되므로 즉시 노출됩니다.
+  fix_example: |
+    ```ts
+    const apiKey = process.env.API_KEY; // 서버 측 환경변수로 이동
+    ```
+
+- rule_id: finguard.ts.http-url
+  code: FIN-TLS-005
+  cwe: CWE-319
+  title: 중요정보 평문 전송(TS/JS HTTP)
+  severity: WARNING
+  basis: 개발보안가이드 「보안기능 - 중요정보 평문 전송」
+  kisa_item: "전자금융기반시설 평가기준(2026) 웹·모바일·HTS 65 (통신구간 암호화 적용)"
+  explain: 평문 HTTP 로 통신하면 전송 구간에서 도청·변조가 가능합니다. TLS(https) 로 전환해야 합니다.
+  fix_example: |
+    ```ts
+    const res = await fetch("https://api.example.com/v1");
+    ```
+
+- rule_id: finguard.java.jdbc-sqli
+  code: FIN-SQLI-003
+  cwe: CWE-89
+  title: SQL 삽입(JDBC 문자열 연결)
+  severity: ERROR
+  basis: 개발보안가이드 「입력데이터 검증 및 표현 - SQL 삽입」
+  kisa_item: "전자금융기반시설 평가기준(2026) 웹·모바일·HTS 19 (SQL Injection)"
+  explain: 외부 입력(request 파라미터·헤더 등)이 검증 없이 SQL 문에 도달하고 있습니다(오염 추적 검출). PreparedStatement 바인딩을 사용해야 합니다.
+  fix_example: |
+    ```java
+    PreparedStatement ps = conn.prepareStatement(
+        "SELECT * FROM USER WHERE ID = ?");
+    ps.setString(1, userId);
+    ```
+
+- rule_id: finguard.java.hardcoded-secret
+  code: FIN-KEY-004
+  cwe: CWE-798
+  title: 하드코드된 중요정보(Java)
+  severity: ERROR
+  basis: 개발보안가이드 「보안기능 - 하드코드된 중요정보」
+  kisa_item: "전자금융기반시설 평가기준(2026) 웹·모바일·HTS 43 (앱 소스코드 내 운영정보 노출 방지)"
+  explain: 비밀번호·API 키·토큰이 소스코드에 문자열로 하드코드되어 있습니다. 소스 유출·역컴파일 시 그대로 노출됩니다.
+  fix_example: |
+    ```java
+    String apiKey = System.getenv("API_KEY"); // 환경변수/시크릿 저장소에서 로드
+    ```
+
+- rule_id: finguard.java.weak-hash
+  code: FIN-CRY-004
+  cwe: CWE-328
+  title: 취약한 해시 알고리즘(Java)
+  severity: WARNING
+  basis: 개발보안가이드 「보안기능 - 취약한 암호화 알고리즘 사용」
+  kisa_item: "전자금융기반시설 평가기준(2026) 웹·모바일·HTS 52 (취약한 HTTPS 암호 알고리즘 이용)"
+  explain: MD5/SHA-1 은 충돌 공격이 실증된 알고리즘으로 무결성·인증 용도로 사용할 수 없습니다. SHA-256 이상을 사용해야 합니다.
+  fix_example: |
+    ```java
+    MessageDigest md = MessageDigest.getInstance("SHA-256");
+    ```
+
+- rule_id: finguard.java.weak-cipher
+  code: FIN-CRY-005
+  cwe: CWE-327
+  title: 취약한 암호 알고리즘/운영모드(Java)
+  severity: ERROR
+  basis: 개발보안가이드 「보안기능 - 취약한 암호화 알고리즘 사용」
+  kisa_item: "전자금융기반시설 평가기준(2026) 웹·모바일·HTS 52 (취약한 HTTPS 암호 알고리즘 이용)"
+  explain: DES·RC4 는 해독이 실증된 알고리즘이고 ECB 모드는 동일 평문이 동일 암문으로 노출됩니다. AES-GCM 등 인증 암호화를 사용해야 합니다.
+  fix_example: |
+    ```java
+    Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
+    ```
+
+- rule_id: finguard.java.print-sensitive
+  code: FIN-LOG-002
+  cwe: CWE-532
+  title: 로그 중요정보 노출(Java)
+  severity: WARNING
+  basis: 개발보안가이드 「에러처리 - 오류 메시지 정보노출」
+  kisa_item: "전자금융기반시설 평가기준(2026) 웹·모바일·HTS 59 (디버그 로그 내 중요정보 노출 방지)"
+  explain: 로그·콘솔에 비밀번호·토큰 등 중요정보가 출력되면 로그 수집 경로로 유출될 수 있습니다. 마스킹하거나 출력을 제거해야 합니다.
+  fix_example: |
+    ```java
+    log.info("token 발급 완료 (length={})", token.length()); // 값 자체는 남기지 않는다
+    ```
+
+- rule_id: finguard.java.http-url
+  code: FIN-TLS-006
+  cwe: CWE-319
+  title: 중요정보 평문 전송(Java HTTP)
+  severity: WARNING
+  basis: 개발보안가이드 「보안기능 - 중요정보 평문 전송」
+  kisa_item: "전자금융기반시설 평가기준(2026) 웹·모바일·HTS 65 (통신구간 암호화 적용)"
+  explain: 평문 HTTP 로 통신하면 전송 구간에서 도청·변조가 가능합니다. 전 구간 TLS 가 기본입니다.
+  fix_example: |
+    ```java
+    URL url = new URL("https://api.example.com/v1");
+    ```
+
+- rule_id: finguard.mybatis.dollar-interpolation
+  code: FIN-SQLI-004
+  cwe: CWE-89
+  title: SQL 삽입(MyBatis ${} 치환)
+  severity: ERROR
+  basis: 개발보안가이드 「입력데이터 검증 및 표현 - SQL 삽입」
+  kisa_item: "전자금융기반시설 평가기준(2026) 웹·모바일·HTS 19 (SQL Injection)"
+  explain: MyBatis ${} 는 값을 SQL 문자열에 그대로 치환합니다. 외부 입력이 닿으면 SQL 삽입으로 이어지므로 #{} 바인딩을 사용해야 합니다. 컬럼명 등 부득이한 경우엔 화이트리스트 검증이 선행돼야 합니다.
+  fix_example: |
+    ```xml
+    <select id="findUser" resultType="User">
+      SELECT * FROM users WHERE id = #{userId}
+    </select>
+    ```
+
+- rule_id: finguard.config.plaintext-secret
+  code: FIN-KEY-005
+  cwe: CWE-798
+  title: 설정파일 평문 시크릿
+  severity: ERROR
+  basis: 개발보안가이드 「보안기능 - 하드코드된 중요정보」
+  kisa_item: "전자금융기반시설 평가기준(2026) 웹·모바일·HTS 43 (앱 소스코드 내 운영정보 노출 방지)"
+  explain: 설정파일에 비밀번호·토큰이 평문으로 들어 있습니다. 저장소에 커밋되는 순간 이력에 영구히 남습니다. 환경변수 치환이나 시크릿 저장소로 분리해야 합니다.
+  fix_example: |
+    ```yaml
+    datasource:
+      password: ${DB_PASSWORD}   # 평문 값 대신 환경변수 치환
+    ```
+
+- rule_id: finguard.go.os-command-injection
+  code: FIN-CMDI-001
+  cwe: CWE-78
+  title: 운영체제 명령어 삽입(Go)
+  severity: ERROR
+  basis: 개발보안가이드 「입력데이터 검증 및 표현 - 운영체제 명령어 삽입」
+  kisa_item: "전자금융기반시설 평가기준(2026) 웹·모바일·HTS 32 (운영체제 명령실행)"
+  explain: 외부 입력이 검증 없이 OS 명령의 실행파일명 또는 인자로 전달되고 있습니다. 임의 명령 실행으로 이어질 수 있습니다.
+  fix_example: |
+    ```go
+    // 허용목록으로 매핑, 셸 경유(sh -c) 금지
+    bin := map[string]string{"ping": "/bin/ping"}[mode]
+    out, err := exec.Command(bin, "-c", "1", host).Output()
+    ```
+
+- rule_id: finguard.go.open-redirect
+  code: FIN-REDIR-001
+  cwe: CWE-601
+  title: 검증되지 않은 리다이렉트(Go)
+  severity: WARNING
+  basis: 개발보안가이드 「입력데이터 검증 및 표현 - 신뢰되지 않는 URL 주소로 자동접속 연결」
+  kisa_item: "전자금융기반시설 평가기준(2026) 웹·모바일·HTS 34 (리다이렉트 기능을 이용한 피싱 공격)"
+  explain: 외부 입력이 리다이렉트 대상 URL 로 사용되어 피싱 사이트로 유도될 수 있습니다.
+  fix_example: |
+    ```go
+    if !strings.HasPrefix(next, "/") || strings.HasPrefix(next, "//") {
+        next = "/"
+    }
+    http.Redirect(w, r, next, http.StatusFound)
+    ```
+
+- rule_id: finguard.go.path-traversal
+  code: FIN-PATH-001
+  cwe: CWE-22
+  title: 경로 조작 및 자원 삽입(Go)
+  severity: ERROR
+  basis: 개발보안가이드 「입력데이터 검증 및 표현 - 경로 조작 및 자원 삽입」
+  kisa_item: "전자금융기반시설 평가기준(2026) 웹·모바일·HTS 28 (파일 다운로드)"
+  explain: 외부 입력이 검증 없이 파일 경로로 사용되어 기준 디렉터리 밖의 파일에 접근할 수 있습니다.
+  fix_example: |
+    ```go
+    name := filepath.Base(r.FormValue("file"))
+    f, err := os.Open(filepath.Join(uploadDir, name))
+    ```
+
+- rule_id: finguard.go.ssrf
+  code: FIN-SSRF-001
+  cwe: CWE-918
+  title: 서버측 요청 위조(Go)
+  severity: WARNING
+  basis: 개발보안가이드 「입력데이터 검증 및 표현 - 서버사이드 요청 위조」
+  kisa_item: "전자금융기반시설 평가기준(2026) 웹·모바일·HTS 61 (서버 사이드 요청 위조 (SSRF))"
+  explain: 외부 입력이 서버가 호출할 URL 로 사용되어 내부망 자원에 접근될 수 있습니다.
+  fix_example: |
+    ```go
+    u, err := url.Parse(target)
+    if err != nil || !allowedHosts[u.Hostname()] {
+        return errors.New("blocked host")
+    }
+    resp, err := http.Get(u.String())
+    ```
+
+- rule_id: finguard.go.weak-tls-version
+  code: FIN-TLS-008
+  cwe: CWE-326
+  title: 취약한 TLS 버전 지정(Go)
+  severity: WARNING
+  basis: 개발보안가이드 「보안기능 - 중요정보 평문 전송」
+  kisa_item: "전자금융기반시설 평가기준(2026) 웹·모바일·HTS 51 (취약한 HTTPS 프로토콜 이용 제한)"
+  explain: TLS MinVersion 이 취약한 버전(SSL3.0/TLS1.0/TLS1.1)으로 지정되어 있습니다. MITM 공격에 노출됩니다.
+  fix_example: |
+    ```go
+    cfg := &tls.Config{MinVersion: tls.VersionTLS12} // 가능하면 VersionTLS13
+    ```
+
+- rule_id: finguard.go.weak-rand-crypto
+  code: FIN-CRY-006
+  cwe: CWE-338
+  title: 예측 가능한 난수로 보안 토큰 생성(Go)
+  severity: WARNING
+  basis: 개발보안가이드 「보안기능 - 적절하지 않은 난수 값 사용」
+  kisa_item: "전자금융기반시설 평가기준(2026) 웹·모바일·HTS 30 (유추 가능한 세션ID)"
+  explain: math/rand 로 생성한 예측 가능한 값이 토큰·키·세션ID 등 보안 목적에 사용되고 있습니다. crypto/rand 를 사용해야 합니다.
+  fix_example: |
+    ```go
+    b := make([]byte, 32)
+    if _, err := crand.Read(b); err != nil { return err }
+    token := hex.EncodeToString(b)
+    ```
+
+- rule_id: finguard.java.os-command-injection
+  code: FIN-CMDI-002
+  cwe: CWE-78
+  title: 운영체제 명령어 삽입(Java)
+  severity: ERROR
+  basis: 개발보안가이드 「입력데이터 검증 및 표현 - 운영체제 명령어 삽입」
+  kisa_item: "전자금융기반시설 평가기준(2026) 웹·모바일·HTS 32 (운영체제 명령실행)"
+  explain: 외부 입력이 검증 없이 OS 명령 실행 인자로 사용됩니다. 임의 명령 실행으로 이어질 수 있습니다.
+  fix_example: |
+    ```java
+    // 허용목록 상수로 고정, 셸 경유 금지
+    ProcessBuilder pb = new ProcessBuilder(List.of("/bin/ls", ALLOWED.get(key)));
+    ```
+
+- rule_id: finguard.java.ldap-injection
+  code: FIN-LDAP-001
+  cwe: CWE-90
+  title: LDAP 삽입
+  severity: ERROR
+  basis: 개발보안가이드 「입력데이터 검증 및 표현 - LDAP 삽입」
+  kisa_item: "전자금융기반시설 평가기준(2026) 웹·모바일·HTS 35 (LDAP Injection)"
+  explain: 외부 입력이 LDAP 검색 필터 문자열에 직접 조립되고 있습니다. 필터 조작으로 인가 우회·정보 유출이 가능합니다.
+  fix_example: |
+    ```java
+    ctx.search(base, "(uid={0})", new Object[]{uid}, sc); // 바인딩
+    ```
+
+- rule_id: finguard.java.xxe
+  code: FIN-XXE-001
+  cwe: CWE-611
+  title: XML 외부 엔티티 참조 제한 부재(XXE)
+  severity: ERROR
+  basis: 개발보안가이드 「입력데이터 검증 및 표현 - XML 삽입」
+  kisa_item: "전자금융기반시설 평가기준(2026) 웹·모바일·HTS 33 (XML 외부객체 공격 (XXE))"
+  explain: XML 파서를 외부 엔티티(DTD) 차단 설정 없이 생성하고 있습니다. XXE 로 서버 자원 접근·SSRF 가 가능합니다.
+  fix_example: |
+    ```java
+    dbf.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
+    ```
+
+- rule_id: finguard.java.insecure-trust-manager
+  code: FIN-TLS-007
+  cwe: CWE-295
+  title: 인증서 검증 무력화
+  severity: ERROR
+  basis: 개발보안가이드 「보안기능 - 부적절한 인증서 유효성 검증」
+  kisa_item: "전자금융기반시설 평가기준(2026) 웹·모바일·HTS 47 (서버 인증서 무결성 검증)"
+  explain: 서버 인증서 또는 호스트명 검증을 우회하고 있어 중간자 공격(MITM)에 노출됩니다.
+  fix_example: |
+    ```java
+    // 기본 TrustManager 위임 + 유효성 검사
+    chain[0].checkValidity();
+    // HostnameVerifier 는 실제 호스트명 비교
+    return "api.example.com".equals(hostname);
+    ```
+
+- rule_id: finguard.java.weak-tls-protocol
+  code: FIN-TLS-009
+  cwe: CWE-326
+  title: 취약한 TLS 프로토콜 사용(Java)
+  severity: WARNING
+  basis: 개발보안가이드 「보안기능 - 중요정보 평문 전송」
+  kisa_item: "전자금융기반시설 평가기준(2026) 웹·모바일·HTS 51 (취약한 HTTPS 프로토콜 이용 제한)"
+  explain: 취약한 SSL/TLS 버전(SSL/SSLv3/TLSv1/TLSv1.1)을 지정하고 있습니다. MITM 공격에 노출됩니다.
+  fix_example: |
+    ```java
+    SSLContext ctx = SSLContext.getInstance("TLSv1.2"); // 이상
+    ```
+
+- rule_id: finguard.java.open-redirect
+  code: FIN-REDIR-002
+  cwe: CWE-601
+  title: 오픈 리다이렉트(Java)
+  severity: WARNING
+  basis: 개발보안가이드 「입력데이터 검증 및 표현 - 신뢰되지 않는 URL 주소로 자동접속 연결」
+  kisa_item: "전자금융기반시설 평가기준(2026) 웹·모바일·HTS 34 (리다이렉트 기능을 이용한 피싱 공격)"
+  explain: 외부 입력이 검증 없이 리다이렉트 주소로 사용됩니다. 피싱 사이트로 유도될 수 있습니다.
+  fix_example: |
+    ```java
+    response.sendRedirect(ALLOW.getOrDefault(key, "/main.do")); // 키→내부경로 변환
+    ```
+
+- rule_id: finguard.java.path-traversal
+  code: FIN-PATH-002
+  cwe: CWE-22
+  title: 경로 조작 및 자원 삽입(Java)
+  severity: ERROR
+  basis: 개발보안가이드 「입력데이터 검증 및 표현 - 경로 조작 및 자원 삽입」
+  kisa_item: "전자금융기반시설 평가기준(2026) 웹·모바일·HTS 28 (파일 다운로드)"
+  explain: 외부 입력이 검증 없이 파일 경로로 사용되어 기준 디렉터리 밖의 파일에 접근할 수 있습니다.
+  fix_example: |
+    ```java
+    Path p = base.resolve(name).normalize();
+    if (!p.startsWith(base)) throw new SecurityException();
+    ```
+
+- rule_id: finguard.java.ssrf
+  code: FIN-SSRF-002
+  cwe: CWE-918
+  title: 서버측 요청 위조(Java)
+  severity: WARNING
+  basis: 개발보안가이드 「입력데이터 검증 및 표현 - 서버사이드 요청 위조」
+  kisa_item: "전자금융기반시설 평가기준(2026) 웹·모바일·HTS 61 (서버 사이드 요청 위조 (SSRF))"
+  explain: 외부 입력이 서버가 호출할 URL 로 사용되어 내부망 자원에 접근될 수 있습니다.
+  fix_example: |
+    ```java
+    if (!ALLOWED_HOSTS.contains(new URL(u).getHost()))
+        throw new SecurityException("blocked");
+    ```
+
+- rule_id: finguard.java.ssti
+  code: FIN-SSTI-001
+  cwe: CWE-1336
+  title: 서버측 템플릿/표현식 삽입(SSTI)
+  severity: ERROR
+  basis: 개발보안가이드 「입력데이터 검증 및 표현 - 코드 삽입」
+  kisa_item: "전자금융기반시설 평가기준(2026) 웹·모바일·HTS 66 (서버 사이드 템플릿 인젝션(SSTI))"
+  explain: 외부 입력이 서버측 표현식으로 직접 평가되어 원격 코드 실행으로 이어질 수 있습니다.
+  fix_example: |
+    ```java
+    // 입력은 컨텍스트 변수로만 전달, 템플릿은 상수
+    ctx.put("name", input);
+    // SpEL 은 SimpleEvaluationContext 로 제한
+    ```
+
+- rule_id: finguard.c.buffer-overflow-unsafe-func
+  code: FIN-BOF-001
+  cwe: CWE-120
+  title: 버퍼 오버플로우 유발 함수 사용
+  severity: ERROR
+  basis: 개발보안가이드 「입력데이터 검증 및 표현 - 메모리 버퍼 오버플로우」
+  kisa_item: "전자금융기반시설 평가기준(2026) 웹·모바일·HTS 40 (버퍼오버플로우 (Buffer Overflow Attack))"
+  explain: 길이 경계를 확인하지 않는 문자열 함수(strcpy/strcat/gets/sprintf/scanf %s 등)를 사용해 대상 버퍼를 넘어 쓰기가 가능합니다.
+  fix_example: |
+    ```c
+    snprintf(buf, sizeof(buf), "%s", in);
+    fgets(buf, sizeof(buf), stdin);
+    scanf("%15s", buf);
+    ```
+
+- rule_id: finguard.c.format-string
+  code: FIN-FMT-001
+  cwe: CWE-134
+  title: 외부 입력 포맷 문자열 사용
+  severity: ERROR
+  basis: 개발보안가이드 「입력데이터 검증 및 표현 - 포맷 스트링 삽입」
+  kisa_item: "전자금융기반시설 평가기준(2026) 웹·모바일·HTS 41 (포맷스트링 (Format String Attack))"
+  explain: 포맷 문자열 자리에 변수가 들어가 %n·%x 등이 삽입되면 메모리 열람·변조가 가능합니다.
+  fix_example: |
+    ```c
+    printf("%s", in); // 사용자 값은 항상 인자로만
+    ```
+
+- rule_id: finguard.ts.os-command-injection
+  code: FIN-CMDI-003
+  cwe: CWE-78
+  title: 운영체제 명령어 삽입(TS/JS)
+  severity: ERROR
+  basis: 개발보안가이드 「입력데이터 검증 및 표현 - 운영체제 명령어 삽입」
+  kisa_item: "전자금융기반시설 평가기준(2026) 웹·모바일·HTS 32 (운영체제 명령실행)"
+  explain: 외부 입력이 셸 명령 문자열에 연결되어 임의 명령 실행이 가능합니다.
+  fix_example: |
+    ```ts
+    execFile("/bin/ls", [dir], cb); // 셸 문자열 조합 대신 인자 배열
+    ```
+
+- rule_id: finguard.ts.open-redirect
+  code: FIN-REDIR-003
+  cwe: CWE-601
+  title: 검증되지 않은 리다이렉트(TS/JS)
+  severity: WARNING
+  basis: 개발보안가이드 「입력데이터 검증 및 표현 - 신뢰되지 않는 URL 주소로 자동접속 연결」
+  kisa_item: "전자금융기반시설 평가기준(2026) 웹·모바일·HTS 34 (리다이렉트 기능을 이용한 피싱 공격)"
+  explain: 외부 입력이 리다이렉트 대상이 되어 피싱 사이트로 유도될 수 있습니다.
+  fix_example: |
+    ```ts
+    const ALLOW = ["/home", "/mypage"];
+    res.redirect(ALLOW.includes(next) ? next : "/home");
+    ```
+
+- rule_id: finguard.ts.ssrf
+  code: FIN-SSRF-003
+  cwe: CWE-918
+  title: 서버측 요청 위조(TS/JS)
+  severity: WARNING
+  basis: 개발보안가이드 「입력데이터 검증 및 표현 - 서버사이드 요청 위조」
+  kisa_item: "전자금융기반시설 평가기준(2026) 웹·모바일·HTS 61 (서버 사이드 요청 위조 (SSRF))"
+  explain: 외부 입력이 서버가 호출할 URL 로 사용되어 내부망 자원에 접근될 수 있습니다.
+  fix_example: |
+    ```ts
+    const u = new URL(target);
+    if (!ALLOW_HOSTS.includes(u.hostname)) throw new Error("blocked");
+    await fetch(u);
+    ```
+
+- rule_id: finguard.ts.xss-innerhtml
+  code: FIN-XSS-002
+  cwe: CWE-79
+  title: DOM 기반 크로스사이트 스크립팅
+  severity: WARNING
+  basis: 개발보안가이드 「입력데이터 검증 및 표현 - 크로스사이트 스크립트」
+  kisa_item: "전자금융기반시설 평가기준(2026) 웹·모바일·HTS 58 (크로스 사이트 스크립팅 (XSS))"
+  explain: 검증되지 않은 값이 innerHTML/outerHTML/document.write 로 HTML 파싱되어 스크립트가 실행될 수 있습니다.
+  fix_example: |
+    ```ts
+    el.textContent = value; // HTML 필요 시 DOMPurify.sanitize 사용
+    ```
+
+- rule_id: finguard.ts.path-traversal
+  code: FIN-PATH-003
+  cwe: CWE-22
+  title: 경로 조작 및 자원 삽입(TS/JS)
+  severity: ERROR
+  basis: 개발보안가이드 「입력데이터 검증 및 표현 - 경로 조작 및 자원 삽입」
+  kisa_item: "전자금융기반시설 평가기준(2026) 웹·모바일·HTS 28 (파일 다운로드)"
+  explain: 외부 입력이 파일 경로로 사용되어 ../ 로 기준 디렉터리 밖 파일을 읽을 수 있습니다.
+  fix_example: |
+    ```ts
+    const p = path.resolve(BASE_DIR, path.basename(name));
+    if (!p.startsWith(BASE_DIR)) throw new Error("blocked");
+    fs.readFileSync(p);
+    ```
+
+- rule_id: finguard.kotlin.hardcoded-secret
+  code: FIN-KEY-006
+  cwe: CWE-798
+  title: 하드코드된 중요정보(Kotlin)
+  severity: ERROR
+  basis: 개발보안가이드 「보안기능 - 하드코드된 중요정보」
+  kisa_item: "전자금융기반시설 평가기준(2026) 웹·모바일·HTS 43 (앱 소스코드 내 운영정보 노출 방지)"
+  explain: 비밀번호·API 키·토큰이 소스코드에 문자열로 하드코드되어 있습니다. APK 디컴파일 시 그대로 노출됩니다.
+  fix_example: |
+    ```kotlin
+    val apiKey = BuildConfig.API_KEY // 또는 NDK/Keystore 로 보호
+    ```
+
+- rule_id: finguard.kotlin.weak-hash
+  code: FIN-CRY-007
+  cwe: CWE-328
+  title: 취약한 해시 알고리즘(Kotlin)
+  severity: WARNING
+  basis: 개발보안가이드 「보안기능 - 취약한 암호화 알고리즘 사용」
+  kisa_item: "전자금융기반시설 평가기준(2026) 웹·모바일·HTS 52 (취약한 HTTPS 암호 알고리즘 이용)"
+  explain: MD5/SHA-1 은 충돌 공격이 실증된 알고리즘입니다. SHA-256 이상을 사용해야 합니다.
+  fix_example: |
+    ```kotlin
+    val md = MessageDigest.getInstance("SHA-256")
+    ```
+
+- rule_id: finguard.kotlin.weak-cipher
+  code: FIN-CRY-008
+  cwe: CWE-327
+  title: 취약한 암호 알고리즘/운영모드(Kotlin)
+  severity: ERROR
+  basis: 개발보안가이드 「보안기능 - 취약한 암호화 알고리즘 사용」
+  kisa_item: "전자금융기반시설 평가기준(2026) 웹·모바일·HTS 52 (취약한 HTTPS 암호 알고리즘 이용)"
+  explain: DES·RC4 는 해독이 실증된 알고리즘이고 ECB 모드는 동일 평문이 동일 암문으로 노출됩니다. AES-GCM 을 사용해야 합니다.
+  fix_example: |
+    ```kotlin
+    val cipher = Cipher.getInstance("AES/GCM/NoPadding")
+    ```
+
+- rule_id: finguard.kotlin.insecure-random
+  code: FIN-CRY-009
+  cwe: CWE-338
+  title: 안전하지 않은 난수로 보안값 생성(Kotlin)
+  severity: WARNING
+  basis: 개발보안가이드 「보안기능 - 적절하지 않은 난수 값 사용」
+  kisa_item: "전자금융기반시설 평가기준(2026) 웹·모바일·HTS 30 (유추 가능한 세션ID)"
+  explain: Math.random/java.util.Random 은 예측 가능한 난수입니다. 키·토큰·솔트 등 보안값 생성에는 SecureRandom 을 사용해야 합니다.
+  fix_example: |
+    ```kotlin
+    val b = ByteArray(16)
+    SecureRandom().nextBytes(b)
+    ```
+
+- rule_id: finguard.kotlin.log-sensitive
+  code: FIN-LOG-003
+  cwe: CWE-532
+  title: 로그 중요정보 노출(Kotlin)
+  severity: WARNING
+  basis: 개발보안가이드 「에러처리 - 오류 메시지 정보노출」
+  kisa_item: "전자금융기반시설 평가기준(2026) 웹·모바일·HTS 59 (디버그 로그 내 중요정보 노출 방지)"
+  explain: Log 에 비밀번호·토큰·응답 본문 등 중요정보가 출력되면 디바이스 로그로 유출될 수 있습니다. 릴리스 빌드에서 로그를 제거해야 합니다.
+  fix_example: |
+    ```kotlin
+    if (BuildConfig.DEBUG) Log.d(TAG, "token length=${token.length}")
+    ```
+
+- rule_id: finguard.kotlin.sql-raw
+  code: FIN-SQLI-005
+  cwe: CWE-89
+  title: SQL 삽입(Kotlin rawQuery/execSQL 조립)
+  severity: ERROR
+  basis: 개발보안가이드 「입력데이터 검증 및 표현 - SQL 삽입」
+  kisa_item: "전자금융기반시설 평가기준(2026) 웹·모바일·HTS 19 (SQL Injection)"
+  explain: rawQuery/execSQL 에 문자열 템플릿·연결로 SQL 을 조립하고 있습니다. 바인딩 인자(?)를 사용해야 합니다.
+  fix_example: |
+    ```kotlin
+    db.rawQuery("SELECT * FROM user WHERE id = ?", arrayOf(userId))
+    ```
+
+- rule_id: finguard.kotlin.webview-js-enabled
+  code: FIN-WV-001
+  cwe: CWE-749
+  title: WebView 자바스크립트 활성화
+  severity: WARNING
+  basis: 개발보안가이드 「API 오용 - 위험한 기능 노출」
+  kisa_item: ""
+  explain: WebView 에서 JavaScript 를 활성화하면 로드하는 콘텐츠가 신뢰되지 않을 경우 XSS·브릿지 공격 위험이 있습니다. 신뢰 도메인만 로드하고 꼭 필요할 때만 활성화해야 합니다.
+  fix_example: |
+    ```kotlin
+    // 신뢰된 콘텐츠에만 활성화, 원격 임의 URL 로드 시 비활성 유지
+    webView.settings.javaScriptEnabled = false
+    ```
+
+- rule_id: finguard.kotlin.webview-js-interface
+  code: FIN-WV-002
+  cwe: CWE-749
+  title: WebView addJavascriptInterface 노출
+  severity: WARNING
+  basis: 개발보안가이드 「API 오용 - 위험한 기능 노출」
+  kisa_item: ""
+  explain: addJavascriptInterface 는 웹 콘텐츠에 네이티브 객체를 노출해, 신뢰되지 않은 페이지가 로드되면 원격 코드 실행으로 이어질 수 있습니다(CVE-2012-6636 계열). @JavascriptInterface 최소 노출·신뢰 도메인 한정이 필요합니다.
+  fix_example: |
+    ```kotlin
+    // 신뢰 도메인에서만, @JavascriptInterface 로 노출 메서드 최소화
+    ```
+
+- rule_id: finguard.kotlin.webview-file-access
+  code: FIN-WV-003
+  cwe: CWE-749
+  title: WebView 파일 접근 허용
+  severity: WARNING
+  basis: 개발보안가이드 「API 오용 - 위험한 기능 노출」
+  kisa_item: ""
+  explain: WebView 에서 file:// 접근을 허용하면 XSS 와 결합해 로컬 파일(토큰 저장소 등) 탈취로 이어질 수 있습니다.
+  fix_example: |
+    ```kotlin
+    webView.settings.allowFileAccess = false
+    ```
+
+- rule_id: finguard.kotlin.sharedprefs-sensitive
+  code: FIN-STO-002
+  cwe: CWE-922
+  title: 중요정보 평문 저장(SharedPreferences)
+  severity: WARNING
+  basis: 개발보안가이드 「보안기능 - 중요정보 평문 저장」
+  kisa_item: "전자금융기반시설 평가기준(2026) 웹·모바일·HTS 26 (단말기 내 중요정보 저장 방지)"
+  explain: SharedPreferences 는 평문 XML 로 저장되어 루팅·백업 추출 시 그대로 읽힙니다. 토큰·비밀번호·계좌정보는 EncryptedSharedPreferences 나 Keystore 로 저장해야 합니다.
+  fix_example: |
+    ```kotlin
+    // EncryptedSharedPreferences 사용
+    val prefs = EncryptedSharedPreferences.create(...)
+    ```
+
+- rule_id: finguard.kotlin.http-url
+  code: FIN-TLS-010
+  cwe: CWE-319
+  title: 중요정보 평문 전송(Kotlin HTTP)
+  severity: WARNING
+  basis: 개발보안가이드 「보안기능 - 중요정보 평문 전송」
+  kisa_item: "전자금융기반시설 평가기준(2026) 웹·모바일·HTS 65 (통신구간 암호화 적용)"
+  explain: 평문 HTTP 로 통신하면 전송 구간에서 도청·변조가 가능합니다. 전 구간 TLS 가 기본입니다.
+  fix_example: |
+    ```kotlin
+    val url = "https://api.example.com/v1"
+    ```
+
+- rule_id: finguard.kotlin.os-command
+  code: FIN-CMDI-004
+  cwe: CWE-78
+  title: 운영체제 명령어 실행(Kotlin)
+  severity: ERROR
+  basis: 개발보안가이드 「입력데이터 검증 및 표현 - 운영체제 명령어 삽입」
+  kisa_item: "전자금융기반시설 평가기준(2026) 웹·모바일·HTS 32 (운영체제 명령실행)"
+  explain: Runtime.exec/ProcessBuilder 로 OS 명령을 실행하고 있습니다. 외부 입력이 섞이면 임의 명령 실행으로 이어지므로 입력을 넣지 말고 허용목록으로 제한해야 합니다.
+  fix_example: |
+    ```kotlin
+    // 사용자 입력 없이 상수 인자만, 셸 경유 금지
+    ProcessBuilder(listOf("/system/bin/ping", "-c", "1", host))
+    ```
+
+- rule_id: finguard.android.debuggable
+  code: FIN-AND-001
+  cwe: CWE-489
+  title: 디버그 가능 플래그 활성화
+  severity: ERROR
+  basis: 개발보안가이드 「캡슐화 - 제거되지 않고 남은 디버그 코드」
+  kisa_item: ""
+  explain: android:debuggable=\"true\" 는 릴리스 앱에 디버거 연결·메모리 접근을 허용합니다. 릴리스 매니페스트에서 제거해야 합니다.
+  fix_example: |
+    ```xml
+    <!-- android:debuggable 속성 제거 (릴리스 기본 false) -->
+    ```
+
+- rule_id: finguard.android.allow-backup
+  code: FIN-AND-002
+  cwe: CWE-530
+  title: 앱 백업 허용
+  severity: WARNING
+  basis: 개발보안가이드 「보안기능 - 중요정보 평문 저장」
+  kisa_item: "전자금융기반시설 평가기준(2026) 웹·모바일·HTS 26 (단말기 내 중요정보 저장 방지)"
+  explain: android:allowBackup=\"true\" 는 adb backup 등으로 앱 데이터 추출을 허용해 중요정보가 유출될 수 있습니다.
+  fix_example: |
+    ```xml
+    <application android:allowBackup="false" ... >
+    ```
+
+- rule_id: finguard.android.cleartext-traffic
+  code: FIN-AND-003
+  cwe: CWE-319
+  title: 평문 트래픽 허용
+  severity: WARNING
+  basis: 개발보안가이드 「보안기능 - 중요정보 평문 전송」
+  kisa_item: "전자금융기반시설 평가기준(2026) 웹·모바일·HTS 65 (통신구간 암호화 적용)"
+  explain: android:usesCleartextTraffic=\"true\" 는 앱 전체에서 평문 HTTP 통신을 허용합니다. Network Security Config 로 도메인 단위 예외로 좁혀야 합니다.
+  fix_example: |
+    ```xml
+    <application android:usesCleartextTraffic="false" ... >
+    ```
+
+- rule_id: finguard.android.exported-no-permission
+  code: FIN-AND-004
+  cwe: CWE-926
+  title: 컴포넌트 외부 노출(exported)
+  severity: WARNING
+  basis: 개발보안가이드 「API 오용 - 위험한 기능 노출」
+  kisa_item: ""
+  explain: android:exported="true" 컴포넌트는 다른 앱이 호출할 수 있습니다. 권한(permission) 보호나 intent-filter 검증 없이 노출되면 인가 우회·인텐트 리다이렉션 위험이 있으므로 수동 확인이 필요합니다.
+  fix_example: |
+    ```xml
+    <activity android:exported="false" ... /> <!-- 또는 android:permission 지정 -->
+    ```
+
+- rule_id: finguard.kotlin.hardcoded-crypto-material
+  code: FIN-CRY-010
+  cwe: CWE-321
+  title: 하드코드된 암호화 키/솔트/IV
+  severity: ERROR
+  basis: 개발보안가이드 「보안기능 - 하드코드된 암호화 키 사용」
+  kisa_item: "전자금융기반시설 평가기준(2026) 웹·모바일·HTS 43 (앱 소스코드 내 운영정보 노출 방지)"
+  explain: 암호화 키·솔트·IV 가 소스코드에 하드코드되어 있습니다. APK/바이너리 디컴파일 시 그대로 노출되어 암호화가 무력화됩니다. 키는 안전한 키 저장소(Keystore)에서 관리하고, 솔트·IV 는 매번 안전한 난수로 생성해야 합니다.
+  fix_example: |
+    ```kotlin
+    val iv = ByteArray(16).also { SecureRandom().nextBytes(it) }
+    val key = keyStore.getKey("alias", null) as SecretKey
+    ```
+
+- rule_id: finguard.android.mutable-pendingintent
+  code: FIN-AND-005
+  cwe: CWE-927
+  title: 변조 가능한 PendingIntent(FLAG_MUTABLE)
+  severity: WARNING
+  basis: 개발보안가이드 「API 오용 - 위험한 기능 노출」
+  kisa_item: ""
+  explain: PendingIntent 에 FLAG_MUTABLE 을 사용하면 이를 수신한 타 앱이 인텐트 내용을 변조할 수 있습니다. 변조가 불필요하면 FLAG_IMMUTABLE 을 사용해야 합니다.
+  fix_example: |
+    ```kotlin
+    PendingIntent.getActivity(ctx, 0, intent, PendingIntent.FLAG_IMMUTABLE)
+    ```
+
+- rule_id: finguard.swift.insecure-trust
+  code: FIN-TLS-011
+  cwe: CWE-295
+  title: 서버 인증서 검증 우회(iOS)
+  severity: ERROR
+  basis: 개발보안가이드 「보안기능 - 부적절한 인증서 유효성 검증」
+  kisa_item: "전자금융기반시설 평가기준(2026) 웹·모바일·HTS 47 (서버 인증서 무결성 검증)"
+  explain: URLSession 인증 챌린지에서 서버가 제시한 인증서를 검증 없이 예외 등록·신뢰하고 있습니다(SecTrustSetExceptions/URLCredential(trust:)). 만료·자가서명·공격자 인증서까지 통과되어 중간자 공격(MITM)으로 통신이 탈취될 수 있습니다.
+  fix_example: |
+    ```swift
+    // 기본 검증을 따르거나, 공개키 피닝으로 서버 신원 확인
+    completionHandler(.performDefaultHandling, nil)
+    ```
+
+# ── Python (#2) ───────────────────────────────────────────────────────────
+
+- rule_id: finguard.python.hardcoded-secret
+  code: FIN-KEY-007
+  cwe: CWE-798
+  title: 하드코드된 중요정보(Python)
+  severity: ERROR
+  basis: 개발보안가이드 「보안기능 - 하드코드된 중요정보」
+  kisa_item: "전자금융기반시설 평가기준(2026) 웹·모바일·HTS 43 (앱 소스코드 내 운영정보 노출 방지)"
+  explain: 비밀번호·API 키·토큰이 소스코드에 문자열로 하드코드되어 있습니다. 소스 유출 시 그대로 노출됩니다.
+  fix_example: |
+    ```python
+    api_key = os.environ["API_KEY"]  # 환경변수 또는 시크릿 저장소에서 로드
+    ```
+
+- rule_id: finguard.python.weak-hash
+  code: FIN-CRY-011
+  cwe: CWE-327
+  title: 취약한 해시 알고리즘(Python)
+  severity: WARNING
+  basis: 개발보안가이드 「보안기능 - 취약한 암호화 알고리즘 사용」
+  kisa_item: "전자금융기반시설 평가기준(2026) 웹·모바일·HTS 52 (취약한 HTTPS 암호 알고리즘 이용)"
+  explain: MD5/SHA-1 은 충돌이 실증된 알고리즘입니다. 무결성·인증 용도로는 SHA-256 이상을 사용해야 합니다.
+  fix_example: |
+    ```python
+    digest = hashlib.sha256(data).hexdigest()
+    ```
+
+- rule_id: finguard.python.http-url
+  code: FIN-TLS-012
+  cwe: CWE-319
+  title: 중요정보 평문 전송(Python HTTP)
+  severity: WARNING
+  basis: 개발보안가이드 「보안기능 - 중요정보 평문 전송」
+  kisa_item: "전자금융기반시설 평가기준(2026) 웹·모바일·HTS 65 (통신구간 암호화 적용)"
+  explain: 평문 HTTP 로 통신하면 전송 구간에서 도청·변조가 가능합니다. TLS(https) 로 전환해야 합니다.
+  fix_example: |
+    ```python
+    resp = requests.get("https://api.example.com/v1")
+    ```
+
+- rule_id: finguard.python.sql-format
+  code: FIN-SQLI-006
+  cwe: CWE-89
+  title: SQL 삽입(문자열 포매팅)
+  severity: ERROR
+  basis: 개발보안가이드 「입력데이터 검증 및 표현 - SQL 삽입」
+  kisa_item: "전자금융기반시설 평가기준(2026) 웹·모바일·HTS 19 (SQL Injection)"
+  explain: f-string·%·format 으로 조립한 SQL 은 입력값이 문장 구조를 바꿀 수 있습니다. 바인딩 파라미터를 사용해야 합니다.
+  fix_example: |
+    ```python
+    cur.execute("SELECT * FROM users WHERE name = %s", (name,))
+    ```
+
+- rule_id: finguard.python.subprocess-shell
+  code: FIN-CMDI-005
+  cwe: CWE-78
+  title: 운영체제 명령어 삽입 위험(Python shell=True)
+  severity: WARNING
+  basis: 개발보안가이드 「입력데이터 검증 및 표현 - 운영체제 명령어 삽입」
+  kisa_item: "전자금융기반시설 평가기준(2026) 웹·모바일·HTS 32 (운영체제 명령실행)"
+  explain: 변수로 조립된 명령을 shell=True(또는 os.system)로 실행하면 변수에 외부 입력이 닿는 순간 명령어 삽입이 됩니다. 인자 리스트 + shell=False 로 전환해야 합니다.
+  fix_example: |
+    ```python
+    subprocess.run(["ls", "-l", path], shell=False, check=True)
+    ```
+
+- rule_id: finguard.python.eval-exec
+  code: FIN-INJ-002
+  cwe: CWE-95
+  title: 코드 삽입(Python eval/exec)
+  severity: ERROR
+  basis: 개발보안가이드 「입력데이터 검증 및 표현 - 코드 삽입」
+  kisa_item: ""
+  explain: eval/exec 에 동적 문자열이 전달되면 외부 입력이 닿는 순간 임의 코드 실행으로 이어집니다. ast.literal_eval 등 안전한 대체 수단을 사용해야 합니다.
+  fix_example: |
+    ```python
+    value = ast.literal_eval(user_input)  # eval(user_input) 금지
+    ```
+
+- rule_id: finguard.python.tls-verify-disabled
+  code: FIN-TLS-013
+  cwe: CWE-295
+  title: TLS 인증서 검증 비활성화(Python)
+  severity: ERROR
+  basis: 개발보안가이드 「보안기능 - 부적절한 인증서 유효성 검증」
+  kisa_item: "전자금융기반시설 평가기준(2026) 웹·모바일·HTS 47 (서버 인증서 무결성 검증)"
+  explain: verify=False·미검증 SSL 컨텍스트는 서버 인증서 검증을 건너뛰어 중간자 공격(MITM)에 그대로 노출됩니다.
+  fix_example: |
+    ```python
+    resp = requests.get(url)  # verify=False 제거, 사설 CA 는 verify="/path/ca.pem"
+    ```
+
+- rule_id: finguard.python.yaml-unsafe-load
+  code: FIN-DES-001
+  cwe: CWE-502
+  title: 신뢰할 수 없는 데이터 역직렬화(yaml.load)
+  severity: WARNING
+  basis: 개발보안가이드 「보안기능 - 신뢰할 수 없는 데이터의 역직렬화」
+  kisa_item: ""
+  explain: 안전하지 않은 로더의 yaml.load 는 임의 파이썬 객체를 생성해, 신뢰할 수 없는 입력이면 코드 실행으로 이어집니다.
+  fix_example: |
+    ```python
+    data = yaml.safe_load(stream)
+    ```
+
+# ── Shell (#2) ────────────────────────────────────────────────────────────
+
+- rule_id: finguard.shell.hardcoded-secret
+  code: FIN-KEY-008
+  cwe: CWE-798
+  title: 하드코드된 중요정보(Shell)
+  severity: ERROR
+  basis: 개발보안가이드 「보안기능 - 하드코드된 중요정보」
+  kisa_item: "전자금융기반시설 평가기준(2026) 웹·모바일·HTS 43 (앱 소스코드 내 운영정보 노출 방지)"
+  explain: 스크립트에 비밀번호·토큰이 평문으로 들어 있습니다. 스크립트는 로그·히스토리·레포로 쉽게 전파되어 그대로 노출됩니다.
+  fix_example: |
+    ```bash
+    DB_PASS="${DB_PASS:?환경변수 필요}"  # 하드코드 대신 주입
+    ```
+
+- rule_id: finguard.shell.curl-insecure
+  code: FIN-TLS-014
+  cwe: CWE-295
+  title: TLS 인증서 검증 비활성화(curl -k)
+  severity: ERROR
+  basis: 개발보안가이드 「보안기능 - 부적절한 인증서 유효성 검증」
+  kisa_item: "전자금융기반시설 평가기준(2026) 웹·모바일·HTS 47 (서버 인증서 무결성 검증)"
+  explain: curl -k/--insecure 는 서버 인증서 검증을 끄고 통신해 중간자 공격(MITM)에 노출됩니다. 사설 CA 는 --cacert 로 등록해 검증을 유지해야 합니다.
+  fix_example: |
+    ```bash
+    curl --cacert /etc/pki/internal-ca.pem https://internal.example
+    ```
+
+- rule_id: finguard.shell.wget-insecure
+  code: FIN-TLS-015
+  cwe: CWE-295
+  title: TLS 인증서 검증 비활성화(wget)
+  severity: ERROR
+  basis: 개발보안가이드 「보안기능 - 부적절한 인증서 유효성 검증」
+  kisa_item: "전자금융기반시설 평가기준(2026) 웹·모바일·HTS 47 (서버 인증서 무결성 검증)"
+  explain: wget --no-check-certificate 는 서버 인증서 검증을 끄고 통신해 중간자 공격(MITM)에 노출됩니다.
+  fix_example: |
+    ```bash
+    wget --ca-certificate=/etc/pki/internal-ca.pem https://internal.example/pkg.tar.gz
+    ```
+
+- rule_id: finguard.shell.curl-pipe-shell
+  code: FIN-INJ-004
+  cwe: CWE-494
+  title: 무결성 검증 없는 원격 스크립트 실행
+  severity: WARNING
+  basis: 개발보안가이드 「보안기능 - 무결성 검사 없는 코드 다운로드」
+  kisa_item: ""
+  explain: curl|sh 는 내려받은 내용을 검증 없이 즉시 실행합니다. 원격지 변조·중간자 공격 시 임의 명령이 그대로 실행됩니다. 다운로드 후 체크섬 검증을 거쳐 실행해야 합니다.
+  fix_example: |
+    ```bash
+    curl -fsSLo install.sh https://example.com/install.sh
+    echo "<sha256>  install.sh" | sha256sum -c - && bash install.sh
+    ```
+
+- rule_id: finguard.shell.eval-var
+  code: FIN-INJ-003
+  cwe: CWE-95
+  title: 코드 삽입(Shell eval)
+  severity: WARNING
+  basis: 개발보안가이드 「입력데이터 검증 및 표현 - 코드 삽입」
+  kisa_item: ""
+  explain: eval 에 변수 확장이 포함되면 변수에 외부 입력이 닿는 순간 임의 명령 실행이 됩니다. 배열·printf %q 등 eval 없는 구성으로 전환해야 합니다.
+  fix_example: |
+    ```bash
+    "${CMD_ARR[@]}"  # eval "$CMD_STR" 대신 배열로 실행
+    ```
+
+- rule_id: finguard.shell.http-url
+  code: FIN-TLS-016
+  cwe: CWE-319
+  title: 중요정보 평문 전송(Shell HTTP)
+  severity: WARNING
+  basis: 개발보안가이드 「보안기능 - 중요정보 평문 전송」
+  kisa_item: "전자금융기반시설 평가기준(2026) 웹·모바일·HTS 65 (통신구간 암호화 적용)"
+  explain: 평문 HTTP 로 통신하면 전송 구간에서 도청·변조가 가능합니다. TLS(https) 로 전환해야 합니다.
+  fix_example: |
+    ```bash
+    curl https://api.example.com/v1
+    ```
+
+- rule_id: finguard.go.sql-sprintf-heuristic
+  code: FIN-SQLI-007
+  cwe: CWE-89
+  title: SQL 삽입 의심(Sprintf 조립 휴리스틱)
+  severity: WARNING
+  basis: 개발보안가이드 「입력데이터 검증 및 표현 - SQL 삽입」
+  kisa_item: "전자금융기반시설 평가기준(2026) 웹·모바일·HTS 19 (SQL Injection)"
+  explain: SQL 문장을 fmt.Sprintf 의 %s/%v 로 조립하고 있습니다. 입력원이 외부 입력이면 문장 구조를 바꿀 수 있는 SQL 삽입이 됩니다. 상수 조립이더라도 바인딩 파라미터로 전환하는 것이 안전합니다.
+  fix_example: |
+    ```go
+    rows, err := db.Query("SELECT * FROM users WHERE name = ?", name)
+    ```

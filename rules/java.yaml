@@ -1,0 +1,309 @@
+rules:
+  # taint(오염 추적) 모드: 외부 입력이 검증 없이 SQL 인자에 도달할 때만 검출.
+  # 내부 상수 조립은 잡지 않는다(오탐 제거, #7). 무료 CE 는 파일 내 추적까지.
+  - id: finguard.java.jdbc-sqli
+    languages: [java]
+    severity: ERROR
+    message: 외부 입력이 검증 없이 SQL 문에 도달합니다. PreparedStatement 바인딩을 사용해야 합니다.
+    paths:
+      exclude: ["*Test.java"]
+    mode: taint
+    pattern-sources:
+      - pattern: $R.getParameter(...)
+      - pattern: $R.getParameterValues(...)
+      - pattern: $R.getHeader(...)
+      - pattern: $R.getQueryString()
+      - pattern: $R.getCookies()
+    pattern-sinks:
+      - patterns:
+          - pattern-either:
+              - pattern: $S.executeQuery($SQL)
+              - pattern: $S.executeUpdate($SQL)
+              - pattern: $S.execute($SQL)
+              - pattern: $S.addBatch($SQL)
+              - pattern: $C.prepareStatement($SQL, ...)
+              - pattern: $C.prepareCall($SQL, ...)
+          - focus-metavariable: $SQL
+
+  - id: finguard.java.hardcoded-secret
+    languages: [regex]
+    severity: ERROR
+    message: 소스코드에 비밀정보(비밀번호·API 키·토큰)가 하드코드되어 있습니다.
+    paths:
+      include: ["*.java"]
+      exclude: ["*Test.java"]
+    pattern-regex: '(?i)String\s+\w*(password|passwd|secret|apikey|api_key|appsecret)\w*\s*=\s*"(?![A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+")(?![a-z]+(?:_[a-z]+)+")[^"]{4,}"'
+
+  - id: finguard.java.weak-hash
+    languages: [regex]
+    severity: WARNING
+    message: 취약한 해시 알고리즘(MD5/SHA-1)을 사용하고 있습니다.
+    paths:
+      include: ["*.java"]
+      exclude: ["*Test.java"]
+    pattern-regex: 'MessageDigest\.getInstance\(\s*"(MD5|SHA-?1)"'
+
+  - id: finguard.java.weak-cipher
+    languages: [regex]
+    severity: ERROR
+    message: 취약한 암호 알고리즘/운영모드(DES·RC4·ECB)를 사용하고 있습니다.
+    paths:
+      include: ["*.java"]
+      exclude: ["*Test.java"]
+    pattern-regex: 'Cipher\.getInstance\(\s*"(DES|DESede|RC4|ARCFOUR)[^"]*"|Cipher\.getInstance\(\s*"[^"]+/ECB/|Cipher\.getInstance\(\s*"(?!RSA")[A-Za-z][A-Za-z0-9]*"'
+
+  - id: finguard.java.print-sensitive
+    languages: [regex]
+    severity: WARNING
+    message: 로그/콘솔에 중요정보가 출력될 수 있습니다.
+    paths:
+      include: ["*.java"]
+      exclude: ["*Test.java"]
+    pattern-regex: '(?im)^(?![ \t]*(?://|\*|/\*)).*?(?:System\.out\.print(?:ln)?|printStackTrace|log(?:ger)?\.(?:info|debug|warn|error))\((?:"(?:\\.|[^"\\])*"|[^")])*?(?:\b(?:password|passwd|token|secret|cardno|card_no)\b|주민)'
+
+  - id: finguard.java.http-url
+    languages: [regex]
+    severity: WARNING
+    message: 평문 HTTP URL 이 사용되고 있습니다. TLS(https) 로 전환해야 합니다.
+    paths:
+      include: ["*.java"]
+      exclude: ["*Test.java"]
+    pattern-regex: '(?im)^(?![ \t]*(?://|\*|/\*)).*"http://(?!localhost|127\.0\.0\.1|0\.0\.0\.0|schemas\.|xmlns|(?:www\.)?w3\.org|(?:[\w.]+\.)?apache\.org|[\w.]*xml\.org|java\.sun\.com|(?:www\.)?example\.(?:com|org)|(?:www\.)?unicode\.org|(?:www\.)?jflex\.de|purl\.org|iana\.org|ietf\.org|slf4j\.org|json-schema\.org)[^"]+"'
+
+  - id: finguard.mybatis.dollar-interpolation
+    languages: [regex]
+    severity: ERROR
+    message: MyBatis 매퍼에서 ${} 문자열 치환을 사용하고 있습니다. 외부 입력이 닿으면 SQL 삽입으로 이어지므로 #{} 바인딩을 사용해야 합니다.
+    paths:
+      include: ["*Mapper.xml", "*mapper.xml"]
+    pattern-regex: '\$\{\s*[a-zA-Z_][\w.]*\s*\}'
+
+  # ------------------------------------------------------------------
+  # 1. OS 명령어 삽입 (CWE-78)
+  # ------------------------------------------------------------------
+  - id: finguard.java.os-command-injection
+    languages: [java]
+    severity: ERROR
+    message: 외부 입력이 검증 없이 OS 명령 실행에 도달합니다. 명령어·인자를 허용목록으로 제한해야 합니다.
+    paths:
+      exclude: ["*Test.java"]
+    mode: taint
+    pattern-sources:
+      - pattern: $R.getParameter(...)
+      - pattern: $R.getParameterValues(...)
+      - pattern: $R.getHeader(...)
+      - pattern: $R.getQueryString()
+      - pattern: $R.getCookies()
+    pattern-sinks:
+      - patterns:
+          - pattern-either:
+              - pattern: Runtime.getRuntime().exec($X, ...)
+              - pattern: new ProcessBuilder($X, ...)
+              - pattern: $PB.command($X, ...)
+          - focus-metavariable: $X
+
+  # ------------------------------------------------------------------
+  # 2. LDAP 삽입 (CWE-90)
+  # ------------------------------------------------------------------
+  - id: finguard.java.ldap-injection
+    languages: [java]
+    severity: ERROR
+    message: 외부 입력이 검증 없이 LDAP 검색 필터에 도달합니다. 필터 특수문자를 이스케이프하거나 바인딩 파라미터를 사용해야 합니다.
+    paths:
+      exclude: ["*Test.java"]
+    mode: taint
+    pattern-sources:
+      - pattern: $R.getParameter(...)
+      - pattern: $R.getParameterValues(...)
+      - pattern: $R.getHeader(...)
+      - pattern: $R.getQueryString()
+      - pattern: $R.getCookies()
+    pattern-sinks:
+      - patterns:
+          - pattern-either:
+              - pattern: $CTX.search($BASE, $FILTER, ...)
+              - pattern: $CTX.searchOne($BASE, $FILTER, ...)
+          - focus-metavariable: $FILTER
+
+  # ------------------------------------------------------------------
+  # 3. XML 외부 엔티티 참조(XXE) (CWE-611)
+  # ------------------------------------------------------------------
+  - id: finguard.java.xxe
+    languages: [java]
+    severity: ERROR
+    message: XML 파서를 외부 엔티티(DTD) 차단 설정 없이 생성하고 있습니다. disallow-doctype-decl 등 안전 설정을 적용해야 합니다.
+    paths:
+      exclude: ["*Test.java"]
+    pattern-either:
+      # (a) 인라인 체인 — 안전설정을 넣을 기회 자체가 없으므로 무조건 검출
+      - pattern: DocumentBuilderFactory.newInstance(...).newDocumentBuilder(...)
+      - pattern: SAXParserFactory.newInstance(...).newSAXParser(...)
+      - pattern: XMLInputFactory.newInstance(...).createXMLStreamReader(...)
+      - pattern: XMLInputFactory.newInstance(...).createXMLEventReader(...)
+      - pattern: TransformerFactory.newInstance(...).newTransformer(...)
+      - pattern: new SAXReader().read(...)
+      - pattern: new SAXBuilder().build(...)
+      # (b) 변수에 담아 쓰는 경우 — 안전설정 호출이 뒤따르지 않을 때만 검출
+      - patterns:
+          - pattern-either:
+              - pattern: $T $F = DocumentBuilderFactory.newInstance(...);
+              - pattern: $T $F = SAXParserFactory.newInstance(...);
+              - pattern: $T $F = XMLInputFactory.newInstance(...);
+              - pattern: $T $F = XMLReaderFactory.createXMLReader(...);
+              - pattern: $T $F = TransformerFactory.newInstance(...);
+              - pattern: $T $F = SchemaFactory.newInstance(...);
+              - pattern: $T $F = new SAXReader(...);
+              - pattern: $T $F = new SAXBuilder(...);
+          - pattern-not-inside: |
+              $T $F = $INIT;
+              ...
+              $F.setFeature(...);
+          - pattern-not-inside: |
+              $T $F = $INIT;
+              ...
+              $F.setProperty(...);
+          - pattern-not-inside: |
+              $T $F = $INIT;
+              ...
+              $F.setAttribute(...);
+          - pattern-not-inside: |
+              $T $F = $INIT;
+              ...
+              $F.setExpandEntityReferences(false);
+          - pattern-not-inside: |
+              $T $F = $INIT;
+              ...
+              $F.setXIncludeAware(false);
+
+  # ------------------------------------------------------------------
+  # 4. 인증서 검증 무력화 (CWE-295)
+  # ------------------------------------------------------------------
+  - id: finguard.java.insecure-trust-manager
+    languages: [java]
+    severity: ERROR
+    message: 서버 인증서 또는 호스트명 검증을 무력화하고 있습니다. 중간자 공격에 노출되므로 정상 검증 로직을 구현해야 합니다.
+    paths:
+      exclude: ["*Test.java"]
+    pattern-either:
+      - pattern: |
+          public void checkServerTrusted(...) { }
+      - pattern: |
+          public void checkClientTrusted(...) { }
+      - pattern: |
+          public boolean verify(...) { return true; }
+      - pattern: |
+          public boolean isTrusted(...) { return true; }
+
+  # ------------------------------------------------------------------
+  # 5. 취약한 TLS 프로토콜 (CWE-326)
+  # ------------------------------------------------------------------
+  - id: finguard.java.weak-tls-protocol
+    languages: [regex]
+    severity: WARNING
+    message: 취약한 TLS/SSL 프로토콜 버전을 지정하고 있습니다. TLSv1.2 이상을 사용해야 합니다.
+    paths:
+      include: ["*.java"]
+      exclude: ["*Test.java"]
+    pattern-regex: '(SSLContext|SSLEngine)\.getInstance\(\s*"(SSL|SSLv2|SSLv3|TLSv1|TLSv1\.1)"|setEnabledProtocols\(\s*new\s+String\[\]\s*\{[^}]*"(SSLv3|TLSv1|TLSv1\.1)"'
+
+  # ------------------------------------------------------------------
+  # 6. 오픈 리다이렉트 (CWE-601)
+  # ------------------------------------------------------------------
+  - id: finguard.java.open-redirect
+    languages: [java]
+    severity: WARNING
+    message: 외부 입력이 검증 없이 리다이렉트 주소로 사용됩니다. 허용된 내부 경로 목록으로 제한해야 합니다.
+    paths:
+      exclude: ["*Test.java"]
+    mode: taint
+    pattern-sources:
+      - pattern: $R.getParameter(...)
+      - pattern: $R.getParameterValues(...)
+      - pattern: $R.getHeader(...)
+      - pattern: $R.getQueryString()
+      - pattern: $R.getCookies()
+    pattern-sinks:
+      - patterns:
+          - pattern-either:
+              - pattern: $RES.sendRedirect($URL, ...)
+              - pattern: new RedirectView($URL, ...)
+          - focus-metavariable: $URL
+
+  # ------------------------------------------------------------------
+  # 7. 경로 조작 / 디렉터리 탐색 (CWE-22)
+  # ------------------------------------------------------------------
+  - id: finguard.java.path-traversal
+    languages: [java]
+    severity: ERROR
+    message: 외부 입력이 검증 없이 파일 경로로 사용됩니다. 상위 경로(..) 제거 및 기준 디렉터리 검증이 필요합니다.
+    paths:
+      exclude: ["*Test.java"]
+    mode: taint
+    pattern-sources:
+      - pattern: $R.getParameter(...)
+      - pattern: $R.getParameterValues(...)
+      - pattern: $R.getHeader(...)
+      - pattern: $R.getQueryString()
+      - pattern: $R.getCookies()
+    pattern-sinks:
+      - pattern: new File(...)
+      - pattern: new FileInputStream(...)
+      - pattern: new FileOutputStream(...)
+      - pattern: new FileReader(...)
+      - pattern: new FileWriter(...)
+      - pattern: new RandomAccessFile(...)
+      - pattern: Paths.get(...)
+      - pattern: Files.newInputStream(...)
+      - pattern: Files.newOutputStream(...)
+
+  # ------------------------------------------------------------------
+  # 8. 서버측 요청 위조(SSRF) (CWE-918)
+  # ------------------------------------------------------------------
+  - id: finguard.java.ssrf
+    languages: [java]
+    severity: WARNING
+    message: 외부 입력이 검증 없이 서버측 HTTP 요청 주소로 사용됩니다. 대상 호스트를 허용목록으로 제한해야 합니다.
+    paths:
+      exclude: ["*Test.java"]
+    mode: taint
+    pattern-sources:
+      - pattern: $R.getParameter(...)
+      - pattern: $R.getParameterValues(...)
+      - pattern: $R.getHeader(...)
+      - pattern: $R.getQueryString()
+      - pattern: $R.getCookies()
+    pattern-sinks:
+      - patterns:
+          - pattern-either:
+              - pattern: new URL($U, ...)
+              - pattern: URI.create($U)
+              - pattern: new HttpGet($U)
+              - pattern: new HttpPost($U)
+              - pattern: $RT.getForObject($U, ...)
+              - pattern: $RT.postForObject($U, ...)
+              - pattern: $RT.exchange($U, ...)
+          - focus-metavariable: $U
+
+  # ------------------------------------------------------------------
+  # 9. 서버측 템플릿/표현식 삽입(SSTI) (CWE-1336)
+  # ------------------------------------------------------------------
+  - id: finguard.java.ssti
+    languages: [java]
+    severity: ERROR
+    message: 외부 입력이 서버측 표현식/템플릿으로 직접 평가됩니다. 원격 코드 실행으로 이어질 수 있어 입력을 표현식으로 사용해서는 안 됩니다.
+    paths:
+      exclude: ["*Test.java"]
+    mode: taint
+    pattern-sources:
+      - pattern: $R.getParameter(...)
+      - pattern: $R.getParameterValues(...)
+      - pattern: $R.getHeader(...)
+      - pattern: $R.getQueryString()
+      - pattern: $R.getCookies()
+    pattern-sinks:
+      - patterns:
+          - pattern-either:
+              - pattern: $P.parseExpression($X, ...)
+              - pattern: $E.evaluate($CTX, $W, $TAG, $X)
+              - pattern: $E.evaluateExpression($X, ...)
+          - focus-metavariable: $X

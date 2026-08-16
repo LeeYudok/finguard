@@ -1,0 +1,27 @@
+{
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {"driver": {"name": "Semgrep OSS"}},
+      "results": [
+        {
+          "ruleId": "finguard.swift.hardcoded-secret",
+          "message": {"text": "하드코드된 중요정보가 발견되었습니다."},
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {"uri": "repo/Sources/Login.swift"},
+                "region": {"startLine": 42, "startColumn": 9, "endLine": 42, "endColumn": 68}
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "finguard.swift.no-location",
+          "message": {"text": "위치 없는 결과는 건너뛴다"},
+          "locations": []
+        }
+      ]
+    }
+  ]
+}
