@@ -4,6 +4,8 @@
 타입접두: `project_`/`feedback_`/`reference_`/`user_`. `user_*`만 개인(gitignore), 그 외 팀 공유.
 
 - [GitHub 개발 SSOT 전환](project_github-publish-flow.md) — 2026-08-17부터 GitHub 가 SSOT(PR 플로우·noreply 신원·main 보호), 구 스냅샷 force 퍼블리시 폐기, 내부 GitLab 은 아카이브
+- [머지 후 브랜치 정리](project_gh-merge-branch-cleanup.md) — `gh pr merge --delete-branch` 가 원격을 안 지움, 항상 수동 삭제 + `git branch -a` 확인
+- [룰 검증용 실코드 코퍼스](project_finguard-scan-corpus.md) — 국내 금융 Swift/Kotlin 고스타 레포는 없음, 대안 10개 목록과 테스트코드 1차 필터·룰 고정 요령
 - `user_reference_jaybbot.md` (개인 메모리, gitignore — 로컬에만 존재) — 외부 스캐너로 이 레포 점검하는 방법·상시 검출 1건 무시 사유
 
 <!-- 메모리 추가 시 아래에 한 줄씩:
