@@ -57,7 +57,7 @@ rules:
       - pattern: fmt.Sprintf($FMT, ...)
       - metavariable-regex:
           metavariable: $FMT
-          regex: '(?is)^"\s*(select|insert|update|delete|merge)\b.*%[sv]'
+          regex: '(?is)^"\s*(select\b.*\bfrom\b|insert\s+into\b|update\b.*\bset\b|delete\s+from\b|merge\s+into\b).*%[sv]'
 
   - id: finguard.go.hardcoded-secret
     languages: [regex]
