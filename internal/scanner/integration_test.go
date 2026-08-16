@@ -2,7 +2,9 @@
 
 // 실제 semgrep 바이너리를 돌려 룰이 취약 패턴을 검출하는지 확인하는 통합 테스트.
 // 폐쇄망·CI 에는 semgrep 이 없을 수 있어 기본 go test 에서 제외한다.
-//   실행: go test -tags semgrep_integration ./internal/scanner/
+//
+//	실행: go test -tags semgrep_integration ./internal/scanner/
+//
 // semgrep 이 PATH 에 없으면 실패가 아니라 skip 한다.
 package scanner
 
@@ -98,6 +100,67 @@ func TestCurlPipeShellSkipsStringLiterals(t *testing.T) {
 	for line, hit := range wantLines {
 		if !hit {
 			t.Errorf("curl_pipe_shell.sh:%d 이 검출되지 않았다 — 회귀", line)
+		}
+	}
+}
+
+// 회귀(#20): 파이썬 룰 8종이 각각 정탐 픽스처를 정확히 검출하고, 오탐 방지
+// 픽스처는 어떤 룰에도 걸리지 않아야 한다. "실코드 스캔에서 파이썬 검출 0건"이
+// 나왔을 때 그것이 코드가 깨끗해서인지 룰이 죽어서인지 이 테스트가 판별한다.
+func TestPythonRulesDetectVulnsAndSkipSafeFixtures(t *testing.T) {
+	requireSemgrep(t)
+	dir, _ := filepath.Abs("../../rules/testdata/vuln-samples")
+
+	findings, err := CLI{}.Scan(context.Background(), rulesDir(t), dir)
+	if err != nil {
+		t.Fatalf("스캔 실패: %v", err)
+	}
+
+	// 룰ID(suffix) → python_vulns.py 에서 정탐이 기대되는 라인.
+	wantLine := map[string]int{
+		"finguard.python.hardcoded-secret":    14,
+		"finguard.python.weak-hash":           19,
+		"finguard.python.http-url":            23,
+		"finguard.python.sql-format":          28,
+		"finguard.python.subprocess-shell":    34,
+		"finguard.python.eval-exec":           39,
+		"finguard.python.tls-verify-disabled": 44,
+		"finguard.python.yaml-unsafe-load":    49,
+	}
+	hit := make(map[string]bool, len(wantLine))
+
+	for _, f := range findings {
+		base := filepath.Base(f.Path)
+
+		if base == "safe_python.py" {
+			t.Errorf("오탐 방지 픽스처가 %s 로 오검출됐다 (line %d)", f.RuleID, f.StartLine)
+			continue
+		}
+		if base != "python_vulns.py" {
+			continue
+		}
+
+		var matched string
+		for ruleID := range wantLine {
+			if strings.HasSuffix(f.RuleID, ruleID) {
+				matched = ruleID
+				break
+			}
+		}
+		if matched == "" {
+			t.Errorf("python_vulns.py 가 예상 밖 룰 %s 로 검출됐다 (line %d)", f.RuleID, f.StartLine)
+			continue
+		}
+		if f.StartLine != wantLine[matched] {
+			t.Errorf("%s 가 예상과 다른 라인 %d 에서 검출됐다 (기대: %d)", matched, f.StartLine, wantLine[matched])
+			continue
+		}
+		hit[matched] = true
+	}
+
+	for ruleID := range wantLine {
+		if !hit[ruleID] {
+			t.Errorf("python_vulns.py 에서 %s 가 검출되지 않았다 — 회귀", ruleID)
 		}
 	}
 }
