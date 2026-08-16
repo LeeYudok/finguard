@@ -119,10 +119,13 @@ rules:
     languages: [regex]
     severity: ERROR
     message: 취약한 암호 알고리즘/운영모드(DES·RC4·ECB)를 사용하고 있습니다.
+    # RSA/ECB/... 는 제외한다 — RSA 는 블록암호가 아니라 운영모드 개념이 없고,
+    # 변환 문자열의 ECB 는 JCA 명명 규약상 자리를 채우는 토큰일 뿐이다.
+    # RSA/ECB/OAEPWith... 는 오히려 권장되는 안전한 형식이다.
     paths:
       include: ["*.java"]
       exclude: ["*Test.java"]
-    pattern-regex: 'Cipher\.getInstance\(\s*"(DES|DESede|RC4|ARCFOUR)[^"]*"|Cipher\.getInstance\(\s*"[^"]+/ECB/|Cipher\.getInstance\(\s*"(?!RSA")[A-Za-z][A-Za-z0-9]*"'
+    pattern-regex: 'Cipher\.getInstance\(\s*"(DES|DESede|RC4|ARCFOUR)[^"]*"|Cipher\.getInstance\(\s*"(?!RSA/)[^"]+/ECB/|Cipher\.getInstance\(\s*"(?!RSA")[A-Za-z][A-Za-z0-9]*"'
 
   - id: finguard.java.print-sensitive
     languages: [regex]
