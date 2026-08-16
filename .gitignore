@@ -1,5 +1,9 @@
 bin/
 
+# 파이썬 룰 픽스처 검증 부산물 — `python3 -m py_compile` 은 -B 여부와 무관하게 캐시를 쓴다
+__pycache__/
+*.pyc
+
 # 시크릿 — pre-commit 게이트(.claude/hooks/pre-commit.sh)와 이중 방어
 .env
 .env.*
