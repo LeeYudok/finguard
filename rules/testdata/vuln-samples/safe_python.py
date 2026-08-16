@@ -7,8 +7,10 @@ rules/ 전체 룰셋 어디에도 걸리면 안 된다.
 import ast
 import hashlib
 import os
+import ssl
 import subprocess
 
+import httpx
 import requests
 import yaml
 
@@ -54,6 +56,22 @@ def fetch_verified(url):
 
 def fetch_default(url):
     return requests.get(url)
+
+
+# 7b) finguard.python.tls-verify-disabled — 기본 컨텍스트로 되돌리는 대입은 안전하다 (#26).
+def restore_tls_default():
+    ssl._create_default_https_context = ssl.create_default_context
+
+
+# 7c) finguard.python.tls-verify-disabled — 검증을 켜는 설정은 대상이 아니다.
+def build_strict_context():
+    ctx = ssl.create_default_context()
+    ctx.verify_mode = ssl.CERT_REQUIRED
+    return ctx
+
+
+def fetch_httpx_verified(url):
+    return httpx.Client(verify=True).get(url)
 
 
 # 8) finguard.python.yaml-unsafe-load — safe_load 또는 SafeLoader 는 대상이 아니다.

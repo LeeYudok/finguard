@@ -5,7 +5,10 @@
 """
 
 import hashlib
+import ssl
 import subprocess
+
+import httpx
 import requests
 import yaml
 
@@ -42,6 +45,23 @@ def compute(user_expr):
 # 7) finguard.python.tls-verify-disabled — TLS 인증서 검증을 끈다.
 def fetch(url):
     return requests.get(url, verify=False)
+
+
+# 7b) finguard.python.tls-verify-disabled — 전역 기본 컨텍스트를 미검증 팩토리로 교체한다 (#26).
+def disable_tls_globally():
+    ssl._create_default_https_context = ssl._create_unverified_context
+
+
+# 7c) finguard.python.tls-verify-disabled — 컨텍스트 속성을 직접 끈다.
+def build_lax_context():
+    ctx = ssl.create_default_context()
+    ctx.verify_mode = ssl.CERT_NONE
+    return ctx
+
+
+# 7d) finguard.python.tls-verify-disabled — requests 외 클라이언트도 결과는 같다.
+def fetch_httpx(url):
+    return httpx.Client(verify=False).get(url)
 
 
 # 8) finguard.python.yaml-unsafe-load — 안전하지 않은 로더로 역직렬화한다.

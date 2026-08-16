@@ -93,9 +93,24 @@ rules:
     message: TLS 인증서 검증을 비활성화하고 있습니다(verify=False / 미검증 컨텍스트). 중간자 공격(MITM)에 노출됩니다.
     paths:
       exclude: ["test_*.py", "*_test.py"]
+    # 호출형만 보면 가장 파급이 큰 관용구를 놓친다 (#26).
+    # `ssl._create_default_https_context = ssl._create_unverified_context` 는 호출 괄호가
+    # 없어 기존 패턴에 안 걸리는데, 프로세스 전역 기본 컨텍스트를 바꿔 이후 모든 https
+    # 호출을 MITM 에 노출시킨다. requests 외 클라이언트(httpx/aiohttp)와 컨텍스트 속성을
+    # 직접 끄는 형태도 같은 결과라 함께 본다.
     pattern-either:
       - pattern: requests.$F(..., verify=False, ...)
       - pattern: ssl._create_unverified_context(...)
+      # 전역 기본 컨텍스트 교체 — 호출이 아니라 함수 객체 대입
+      - pattern: ssl._create_default_https_context = ssl._create_unverified_context
+      # 컨텍스트 속성 직접 무력화
+      - pattern: $CTX.verify_mode = ssl.CERT_NONE
+      - pattern: $CTX.check_hostname = False
+      # requests 외 HTTP 클라이언트
+      - pattern: httpx.Client(..., verify=False, ...)
+      - pattern: httpx.AsyncClient(..., verify=False, ...)
+      - pattern: httpx.$F(..., verify=False, ...)
+      - pattern: aiohttp.TCPConnector(..., ssl=False, ...)
 
   - id: finguard.python.yaml-unsafe-load
     languages: [python]

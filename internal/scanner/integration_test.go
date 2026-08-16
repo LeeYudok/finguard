@@ -116,18 +116,26 @@ func TestPythonRulesDetectVulnsAndSkipSafeFixtures(t *testing.T) {
 		t.Fatalf("스캔 실패: %v", err)
 	}
 
-	// 룰ID(suffix) → python_vulns.py 에서 정탐이 기대되는 라인.
-	wantLine := map[string]int{
-		"finguard.python.hardcoded-secret":    14,
-		"finguard.python.weak-hash":           19,
-		"finguard.python.http-url":            23,
-		"finguard.python.sql-format":          28,
-		"finguard.python.subprocess-shell":    34,
-		"finguard.python.eval-exec":           39,
-		"finguard.python.tls-verify-disabled": 44,
-		"finguard.python.yaml-unsafe-load":    49,
+	// 룰ID(suffix) → python_vulns.py 에서 정탐이 기대되는 라인 집합.
+	// tls-verify-disabled 는 형태가 여럿이라 라인이 여러 개다 (#26):
+	// requests verify=False / 전역 기본 컨텍스트 교체 / verify_mode 직접 해제 / httpx.
+	wantLines := map[string][]int{
+		"finguard.python.hardcoded-secret":    {17},
+		"finguard.python.weak-hash":           {22},
+		"finguard.python.http-url":            {26},
+		"finguard.python.sql-format":          {31},
+		"finguard.python.subprocess-shell":    {37},
+		"finguard.python.eval-exec":           {42},
+		"finguard.python.tls-verify-disabled": {47, 52, 58, 64},
+		"finguard.python.yaml-unsafe-load":    {69},
 	}
-	hit := make(map[string]bool, len(wantLine))
+	hit := map[string]map[int]bool{}
+	for id, lines := range wantLines {
+		hit[id] = make(map[int]bool, len(lines))
+		for _, ln := range lines {
+			hit[id][ln] = false
+		}
+	}
 
 	for _, f := range findings {
 		base := filepath.Base(f.Path)
@@ -141,7 +149,7 @@ func TestPythonRulesDetectVulnsAndSkipSafeFixtures(t *testing.T) {
 		}
 
 		var matched string
-		for ruleID := range wantLine {
+		for ruleID := range wantLines {
 			if strings.HasSuffix(f.RuleID, ruleID) {
 				matched = ruleID
 				break
@@ -151,16 +159,18 @@ func TestPythonRulesDetectVulnsAndSkipSafeFixtures(t *testing.T) {
 			t.Errorf("python_vulns.py 가 예상 밖 룰 %s 로 검출됐다 (line %d)", f.RuleID, f.StartLine)
 			continue
 		}
-		if f.StartLine != wantLine[matched] {
-			t.Errorf("%s 가 예상과 다른 라인 %d 에서 검출됐다 (기대: %d)", matched, f.StartLine, wantLine[matched])
+		if _, ok := hit[matched][f.StartLine]; !ok {
+			t.Errorf("%s 가 예상 밖 라인 %d 에서 검출됐다 (기대: %v)", matched, f.StartLine, wantLines[matched])
 			continue
 		}
-		hit[matched] = true
+		hit[matched][f.StartLine] = true
 	}
 
-	for ruleID := range wantLine {
-		if !hit[ruleID] {
-			t.Errorf("python_vulns.py 에서 %s 가 검출되지 않았다 — 회귀", ruleID)
+	for ruleID, lines := range wantLines {
+		for _, ln := range lines {
+			if !hit[ruleID][ln] {
+				t.Errorf("python_vulns.py:%d 에서 %s 가 검출되지 않았다 — 회귀", ln, ruleID)
+			}
 		}
 	}
 }
