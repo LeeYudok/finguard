@@ -71,4 +71,7 @@ rules:
         - "*/src/androidTest/*"
         - "*/src/test/*"
         - "*/src/*Debug/*"
-    pattern-regex: 'android:exported\s*=\s*"true"'
+    # 런처 액티비티는 반드시 exported 여야 하므로 제외한다(모든 앱에 하나씩 있다).
+    # 같은 <activity> 블록을 벗어나지 않도록 </activity> 를 만나면 탐색을 끊는다.
+    # 딥링크 핸들러는 실제 공격면이므로 계속 지적한다.
+    pattern-regex: 'android:exported\s*=\s*"true"(?!(?:(?!</activity>)[\s\S]){0,600}?android\.intent\.category\.LAUNCHER)'
