@@ -325,6 +325,42 @@ rules:
       - pattern: Files.newInputStream(...)
       - pattern: Files.newOutputStream(...)
 
+  # zip-slip: 압축 엔트리명을 검증 없이 파일 경로로 사용 (CWE-22).
+  # ZIP 엔트리명은 아카이브 제작자가 임의로 정할 수 있어 "../" 로 기준 디렉터리를
+  # 탈출할 수 있다. 첨부파일(ZIP/HWPX/OOXML) 업로드 처리 경로에서 특히 위험하다.
+  # 정규화 후 기준 경로 검증(startsWith)을 한 코드는 잡지 않는다.
+  - id: finguard.java.zip-slip
+    languages: [java]
+    severity: ERROR
+    message: 압축 엔트리명이 검증 없이 파일 경로로 사용되고 있습니다(zip-slip). 엔트리명은 아카이브 제작자가 정하므로 상위 경로(..)로 기준 디렉터리를 벗어날 수 있습니다. 정규화(getCanonicalPath) 후 기준 디렉터리 하위인지 확인해야 합니다.
+    paths:
+      exclude: ["*Test.java"]
+    mode: taint
+    pattern-sources:
+      - pattern: $E.getName()
+      - pattern: $E.getEntry(...).getName()
+    pattern-sanitizers:
+      # 정규화(canonical)·파일명만 추출한 경우는 안전으로 본다.
+      # 정규화 뒤 기준 디렉터리 검증까지 하는 것이 정석이며, 정규화 자체를
+      # sanitizer 로 보아 검증 코드를 오탐하지 않게 한다.
+      - pattern: $P.getCanonicalPath()
+      - pattern: $P.getCanonicalFile()
+      - pattern: $P.toPath().normalize()
+      - pattern: $P.normalize()
+      - pattern: FilenameUtils.getName(...)
+      - pattern: new File(...).getName()
+    # sink 은 실제 파일 I/O 로 한정한다. new File()/Paths.get() 은 경로 객체 생성일
+    # 뿐이라 그 자체로 위험하지 않고, sink 로 두면 검증 코드까지 잡는 오탐이 된다.
+    pattern-sinks:
+      - patterns:
+          - pattern-either:
+              - pattern: new FileOutputStream(...)
+              - pattern: new FileWriter(...)
+              - pattern: new RandomAccessFile(...)
+              - pattern: Files.newOutputStream(...)
+              - pattern: Files.copy(...)
+              - pattern: Files.write(...)
+
   # ------------------------------------------------------------------
   # 8. 서버측 요청 위조(SSRF) (CWE-918)
   # ------------------------------------------------------------------

@@ -673,6 +673,39 @@
     el.textContent = value; // HTML 필요 시 DOMPurify.sanitize 사용
     ```
 
+- rule_id: finguard.java.zip-slip
+  code: FIN-PATH-004
+  cwe: CWE-22
+  title: 압축 해제 경로 조작(zip-slip, Java)
+  severity: ERROR
+  basis: 개발보안가이드 「입력데이터 검증 및 표현 - 경로 조작 및 자원 삽입」
+  kisa_item: "전자금융기반시설 평가기준(2026) 웹·모바일·HTS 20 (악성파일 업로드)"
+  explain: 압축 파일의 엔트리명을 검증 없이 저장 경로로 사용하고 있습니다. 엔트리명은 아카이브 제작자가 임의로 정할 수 있어 상위 경로(..)로 기준 디렉터리를 벗어나 임의 위치에 파일을 덮어쓸 수 있습니다(zip-slip). 첨부파일 업로드 처리 경로에서 특히 위험합니다.
+  fix_example: |
+    ```java
+    File base = new File(destDir).getCanonicalFile();
+    File out = new File(base, entry.getName()).getCanonicalFile();
+    if (!out.toPath().startsWith(base.toPath())) {
+        throw new SecurityException("압축 경로 이탈: " + entry.getName());
+    }
+    ```
+
+- rule_id: finguard.ts.zip-slip
+  code: FIN-PATH-005
+  cwe: CWE-22
+  title: 압축 해제 경로 조작(zip-slip, TS/JS)
+  severity: ERROR
+  basis: 개발보안가이드 「입력데이터 검증 및 표현 - 경로 조작 및 자원 삽입」
+  kisa_item: "전자금융기반시설 평가기준(2026) 웹·모바일·HTS 20 (악성파일 업로드)"
+  explain: 압축 파일의 엔트리명을 검증 없이 파일 쓰기 경로로 사용하고 있습니다. 엔트리명에 상위 경로(..)가 포함되면 기준 디렉터리 밖에 파일을 생성·덮어쓸 수 있습니다(zip-slip).
+  fix_example: |
+    ```ts
+    const base = path.resolve(outDir);
+    const out = path.resolve(base, entry.entryName);
+    if (!out.startsWith(base + path.sep)) throw new Error("압축 경로 이탈");
+    fs.writeFileSync(out, entry.getData());
+    ```
+
 - rule_id: finguard.ts.path-traversal
   code: FIN-PATH-003
   cwe: CWE-22

@@ -159,3 +159,37 @@ rules:
               - pattern: readFileSync($P, ...)
               - pattern: createReadStream($P, ...)
           - focus-metavariable: $P
+
+  # zip-slip: 압축 엔트리명을 검증 없이 디스크 쓰기 경로로 사용 (CWE-22).
+  # 소스는 zip 라이브러리 고유 속성(adm-zip entryName, yauzl fileName)으로 한정해
+  # 흔한 이름(.path 등)으로 인한 오탐을 피한다. 엔트리명 대신 자체 생성 파일명을
+  # 쓰는 코드(안전한 구현)는 잡히지 않는다.
+  - id: finguard.ts.zip-slip
+    languages: [ts, js]
+    severity: ERROR
+    message: 압축 엔트리명이 검증 없이 파일 쓰기 경로로 사용되고 있습니다(zip-slip). 엔트리명은 아카이브 제작자가 정하므로 상위 경로(..)로 기준 디렉터리를 벗어날 수 있습니다. path.basename 으로 파일명만 취하거나, 정규화 후 기준 디렉터리 하위인지 확인해야 합니다.
+    metadata:
+      cwe: "CWE-22"
+      category: security
+    mode: taint
+    pattern-sources:
+      - pattern-either:
+          - pattern: $E.entryName
+          - pattern: $E.fileName
+          - pattern: $E.getEntries()
+    pattern-sanitizers:
+      - pattern: path.basename(...)
+      - pattern: basename(...)
+    pattern-sinks:
+      - patterns:
+          - pattern-either:
+              - pattern: $FS.writeFile($P, ...)
+              - pattern: $FS.writeFileSync($P, ...)
+              - pattern: $FS.createWriteStream($P, ...)
+              - pattern: $FS.mkdirSync($P, ...)
+              - pattern: $FS.mkdir($P, ...)
+              - pattern: writeFile($P, ...)
+              - pattern: writeFileSync($P, ...)
+              - pattern: createWriteStream($P, ...)
+              - pattern: mkdirSync($P, ...)
+          - focus-metavariable: $P
