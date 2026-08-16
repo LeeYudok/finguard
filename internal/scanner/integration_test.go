@@ -59,3 +59,45 @@ func TestDetectsTemplateVariableInjection(t *testing.T) {
 		t.Error("template variable 코드 주입(FIN-INJ-001)이 검출되지 않았다 — 회귀")
 	}
 }
+
+// 회귀(#19): curl|sh 룰이 실행되는 명령만 잡고, 안내용 문자열 리터럴은 잡지 않아야 한다.
+// 실코드 스캔에서 검출 7건 중 3건이 `info "설치 중: curl ... | sh"` 형태의 오탐이었다.
+func TestCurlPipeShellSkipsStringLiterals(t *testing.T) {
+	requireSemgrep(t)
+	dir, _ := filepath.Abs("../../rules/testdata/vuln-samples")
+
+	findings, err := CLI{}.Scan(context.Background(), rulesDir(t), dir)
+	if err != nil {
+		t.Fatalf("스캔 실패: %v", err)
+	}
+
+	// 정탐 픽스처의 실행 라인 — 하나라도 빠지면 recall 회귀다.
+	wantLines := map[int]bool{7: false, 10: false, 13: false, 16: false, 19: false, 22: false, 25: false}
+
+	for _, f := range findings {
+		base := filepath.Base(f.Path)
+		// 안내 문자열만 담은 픽스처는 어떤 룰에도 걸리면 안 된다.
+		if base == "safe_curl_pipe_shell_string.sh" {
+			t.Errorf("문자열 리터럴 픽스처가 %s 로 오검출됐다 (line %d)", f.RuleID, f.StartLine)
+			continue
+		}
+		if base != "curl_pipe_shell.sh" {
+			continue
+		}
+		if !strings.HasSuffix(f.RuleID, "finguard.shell.curl-pipe-shell") {
+			t.Errorf("정탐 픽스처가 예상 밖 룰 %s 로 검출됐다 (line %d)", f.RuleID, f.StartLine)
+			continue
+		}
+		if _, ok := wantLines[f.StartLine]; !ok {
+			t.Errorf("정탐 픽스처의 비대상 라인 %d 이 검출됐다", f.StartLine)
+			continue
+		}
+		wantLines[f.StartLine] = true
+	}
+
+	for line, hit := range wantLines {
+		if !hit {
+			t.Errorf("curl_pipe_shell.sh:%d 이 검출되지 않았다 — 회귀", line)
+		}
+	}
+}

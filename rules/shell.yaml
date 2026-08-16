@@ -32,7 +32,16 @@ rules:
     message: 원격에서 내려받은 스크립트를 무결성 검증 없이 바로 셸로 실행합니다. 다운로드 후 체크섬 검증을 거쳐 실행해야 합니다.
     paths:
       include: ["*.sh", "*.bash", "*.zsh"]
-    pattern-regex: '(?m)^(?!\s*#)[^\n]*\b(?:curl|wget)\b[^|\n]*\|\s*(?:sudo\s+)?(?:bash|sh|zsh|dash)\b'
+    # 실행되는 명령만 잡고, 안내용 문자열 리터럴은 제외한다 (#19).
+    # 설치 스크립트는 "지금 이 명령을 실행합니다" 를 출력한 뒤 실제로 실행하는 패턴이 흔해
+    # 정탐 1건마다 오탐 1건이 따라붙었다. 두 겹으로 억제한다.
+    #   1) 라인 선두가 출력 계열 명령(echo/printf/info/warn/log/...)이면 제외
+    #   2) curl 앞의 구간이 "따옴표 밖" 이어야 한다 — 완결된 인용구만 건너뛸 수 있어
+    #      열린 따옴표 안의 curl 에는 도달하지 못한다
+    # 단 `bash -c "curl ... | sh"` 는 실제 실행이므로, 라인이 셸 실행 명령으로 시작하면
+    # 2) 를 적용하지 않는다(첫 대안).
+    pattern-regex: |-
+      (?m)^(?!\s*#)(?:\s*(?:sudo\s+)?(?:bash|sh|zsh|dash|eval|ssh)\b[^\n]*?|(?!\s*(?:echo|printf|print|info|warn|warning|log|logger|error|debug|note|msg|say)\b)(?:[^"'\n]|"[^"\n]*"|'[^'\n]*')*?)\b(?:curl|wget)\b[^|\n]*\|\s*(?:sudo\s+)?(?:bash|sh|zsh|dash)\b
 
   - id: finguard.shell.eval-var
     languages: [regex]
