@@ -25,6 +25,75 @@ rules:
               - pattern: $C.prepareCall($SQL, ...)
           - focus-metavariable: $SQL
 
+  # 보조룰(비-taint): SQL 을 String.format/문자열 연결로 조립해 execute 계열에 넘기는 패턴.
+  # jdbc-sqli 의 파일 단위 taint 가 Controller→DAO 파일 분리에서 끊기는 케이스를 보완한다.
+  # 내부 상수만 조립하는 경우도 포함될 수 있어 severity=WARNING + 수동 확인 문구.
+  # SQL 키워드가 포함된 리터럴로 한정해 오탐을 억제한다.
+  - id: finguard.java.sql-string-build
+    languages: [java]
+    severity: WARNING
+    message: SQL 문을 String.format 또는 문자열 연결로 조립해 실행하고 있습니다. 조립에 쓰인 값이 외부 입력에서 유래하면 SQL 삽입 위험이 있습니다. 파일 경계를 넘는 오염 추적은 자동 점검 범위를 벗어나므로 PreparedStatement 바인딩 여부를 수동 확인해야 합니다.
+    paths:
+      exclude: ["*Test.java"]
+    patterns:
+      - pattern-either:
+          # (1) execute 인자에 String.format 직접
+          - patterns:
+              - pattern-either:
+                  - pattern: $S.executeQuery(String.format($FMT, ...))
+                  - pattern: $S.executeUpdate(String.format($FMT, ...))
+                  - pattern: $S.execute(String.format($FMT, ...))
+                  - pattern: $S.addBatch(String.format($FMT, ...))
+              - metavariable-regex:
+                  metavariable: $FMT
+                  regex: (?i).*(select|insert|update|delete|from|where)\s
+          # (2) 지역변수에 String.format 대입 후 execute
+          - patterns:
+              - pattern-either:
+                  - pattern: |
+                      $T $SQL = String.format($FMT, ...);
+                      ...
+                      $S.executeQuery($SQL);
+                  - pattern: |
+                      $T $SQL = String.format($FMT, ...);
+                      ...
+                      $S.executeUpdate($SQL);
+                  - pattern: |
+                      $T $SQL = String.format($FMT, ...);
+                      ...
+                      $S.execute($SQL);
+              - metavariable-regex:
+                  metavariable: $FMT
+                  regex: (?i).*(select|insert|update|delete|from|where)\s
+          # (3) execute 인자에 문자열 연결 직접 (SQL 리터럴 + 변수)
+          - patterns:
+              - pattern-either:
+                  - pattern: $S.executeQuery($LIT + $X)
+                  - pattern: $S.executeUpdate($LIT + $X)
+                  - pattern: $S.execute($LIT + $X)
+                  - pattern: $S.addBatch($LIT + $X)
+              - metavariable-regex:
+                  metavariable: $LIT
+                  regex: (?i)"\s*(select|insert|update|delete).*
+          # (4) 지역변수에 문자열 연결 대입 후 execute
+          - patterns:
+              - pattern-either:
+                  - pattern: |
+                      $T $SQL = $LIT + $X;
+                      ...
+                      $S.executeQuery($SQL);
+                  - pattern: |
+                      $T $SQL = $LIT + $X;
+                      ...
+                      $S.executeUpdate($SQL);
+                  - pattern: |
+                      $T $SQL = $LIT + $X;
+                      ...
+                      $S.execute($SQL);
+              - metavariable-regex:
+                  metavariable: $LIT
+                  regex: (?i)"\s*(select|insert|update|delete).*
+
   - id: finguard.java.hardcoded-secret
     languages: [regex]
     severity: ERROR

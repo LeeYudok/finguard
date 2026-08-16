@@ -264,6 +264,23 @@
     ps.setString(1, userId);
     ```
 
+- rule_id: finguard.java.sql-string-build
+  code: FIN-SQLI-004
+  cwe: CWE-89
+  title: SQL 삽입 의심(문자열 조립 실행)
+  severity: WARNING
+  basis: 개발보안가이드 「입력데이터 검증 및 표현 - SQL 삽입」
+  kisa_item: "전자금융기반시설 평가기준(2026) 웹·모바일·HTS 19 (SQL Injection)"
+  explain: SQL 문을 String.format 또는 문자열 연결로 조립해 실행하고 있습니다. 조립 값이 외부 입력에서 유래하면 SQL 삽입 위험이 있습니다. 오염원이 다른 파일(예를 들어 Controller/Servlet)에 있으면 자동 오염 추적이 파일 경계에서 끊기므로, PreparedStatement 바인딩 여부를 수동 확인해야 합니다.
+  fix_example: |
+    ```java
+    // 문자열 조립 대신 바인딩 파라미터 사용
+    PreparedStatement ps = conn.prepareStatement(
+        "SELECT * FROM USERS WHERE ID = ? AND PASSWORD = ?");
+    ps.setString(1, id);
+    ps.setString(2, password);
+    ```
+
 - rule_id: finguard.java.hardcoded-secret
   code: FIN-KEY-004
   cwe: CWE-798
