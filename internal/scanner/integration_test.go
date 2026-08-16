@@ -127,7 +127,8 @@ func TestPythonRulesDetectVulnsAndSkipSafeFixtures(t *testing.T) {
 		"finguard.python.subprocess-shell":    {37},
 		"finguard.python.eval-exec":           {42},
 		"finguard.python.tls-verify-disabled": {47, 52, 58, 64},
-		"finguard.python.yaml-unsafe-load":    {69},
+		"finguard.python.cleartext-websocket": {68},
+		"finguard.python.yaml-unsafe-load":    {73},
 	}
 	hit := map[string]map[int]bool{}
 	for id, lines := range wantLines {

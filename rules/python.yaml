@@ -35,6 +35,18 @@ rules:
       exclude: ["test_*.py", "*_test.py"]
     pattern-regex: '(?im)^(?![ \t]*#).*["'']http://(?!localhost|127\.0\.0\.1|0\.0\.0\.0|schemas\.|xmlns|(?:www\.)?w3\.org|(?:[\w.]+\.)?apache\.org|[\w.]*xml\.org|(?:www\.)?example\.(?:com|org)|(?:www\.)?unicode\.org|purl\.org|iana\.org|ietf\.org|json-schema\.org)[^"'']+["'']'
 
+  # 금융 실시간 채널(시세·체결통보)은 대부분 웹소켓이고 접속키가 함께 흐른다 (#30).
+  # http-url 과 스킴만 다르고 예외 도메인 목록은 동일 — ws://localhost 개발 서버는 계속 제외된다.
+  # 접속 자격증명 동반 가능성이 높아 severity 는 ERROR 로 분리했다(http-url 은 WARNING 유지).
+  - id: finguard.python.cleartext-websocket
+    languages: [regex]
+    severity: ERROR
+    message: 평문 WebSocket(ws://) 으로 통신하고 있습니다. 실시간 시세·체결통보 채널에는 접속키와 거래내역이 흐르므로 wss:// 로 전환해야 합니다.
+    paths:
+      include: ["*.py"]
+      exclude: ["test_*.py", "*_test.py"]
+    pattern-regex: '(?im)^(?![ \t]*#).*["'']ws://(?!localhost|127\.0\.0\.1|0\.0\.0\.0|schemas\.|xmlns|(?:www\.)?w3\.org|(?:[\w.]+\.)?apache\.org|[\w.]*xml\.org|(?:www\.)?example\.(?:com|org)|(?:www\.)?unicode\.org|purl\.org|iana\.org|ietf\.org|json-schema\.org)[^"'']+["'']'
+
   # 문자열 조립 SQL — f-string / % / .format 으로 만든 문장을 그대로 execute 에 전달.
   # 바인딩 파라미터(execute(sql, params)) 사용은 잡지 않는다.
   - id: finguard.python.sql-format

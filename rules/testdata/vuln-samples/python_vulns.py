@@ -64,6 +64,10 @@ def fetch_httpx(url):
     return httpx.Client(verify=False).get(url)
 
 
+# 9) finguard.python.cleartext-websocket — 실시간 체결통보를 평문 웹소켓으로 받는다 (#30).
+REALTIME_FEED_URL = "ws://ops.example-broker.co.kr:21000"
+
+
 # 8) finguard.python.yaml-unsafe-load — 안전하지 않은 로더로 역직렬화한다.
 def load_config(stream):
     return yaml.load(stream, Loader=yaml.Loader)
