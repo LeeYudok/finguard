@@ -46,10 +46,24 @@
 
 ```bash
 go build -mod=vendor ./...     # 빌드
-go test -mod=vendor ./...      # 테스트
+go test -race -mod=vendor ./... # 테스트 (레이스 감지 포함)
 make build-linux               # 폐쇄망 반입용 정적 바이너리
 semgrep --validate --config rules/   # 룰 문법 검증
 ```
+
+## 코드 탐색 — CodeGraph
+
+이 레포는 CodeGraph 로 인덱싱돼 있다(`.codegraph/`, 전역 gitignore 로 커밋 제외).
+코드 위치를 찾거나 흐름을 파악할 때 grep/find 보다 먼저 쓴다.
+
+```bash
+codegraph explore "<질문 또는 심볼명>"   # 관련 심볼 소스 + 호출 경로 한 번에
+codegraph sync .                        # 코드 변경 후 인덱스 갱신
+```
+
+Semgrep·reviewdog 은 인터페이스로 추상화돼 있어 호출 흐름이 grep 으로 안 잡힌다
+(`scanner.Semgrep` → `CLI`, `runner.Reviewdog` → `CLI`). CodeGraph 는 이 동적 디스패치
+연결과 "테스트가 덮지 않는 심볼"까지 같이 알려준다.
 
 ## 아키텍처
 
