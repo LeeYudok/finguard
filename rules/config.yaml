@@ -5,4 +5,7 @@ rules:
     message: 설정파일에 시크릿이 평문으로 들어 있습니다. 환경변수 치환(${VAR}) 또는 시크릿 저장소를 사용해야 합니다.
     paths:
       include: ["application*.yml", "application*.yaml", "*.properties"]
-    pattern-regex: '(?i)^\s*[\w.-]*(password|passwd|secret|token|api[_-]?key)[\w.-]*\s*[:=]\s*(?!\s*$)(?!\$\{)(?!ENC\()["'']?[^\s"''#][^#\n]{3,}'
+    patterns:
+      - pattern-regex: '(?i)^\s*[\w.-]*(password|passwd|secret|token|api[_-]?key)[\w.-]*\s*[:=]\s*(?!\s*$)(?!\$\{)(?!ENC\()["'']?[^\s"''#][^#\n]{3,}'
+      # 마스킹 플레이스홀더는 시크릿이 아니다 — 오히려 가리는 코드다
+      - pattern-not-regex: '(?i)["''`](\*{3,}|x{3,}|•{3,}|\.{4,}|#{3,}|_{4,}|redacted|<[^>]*redact[^>]*>|change[_-]?me|placeholder|dummy|your[_-][\w-]*|todo|fixme)["''`]|[:=]\s*(\*{3,}|•{3,}|#{3,})(?![\w-])'

@@ -101,7 +101,10 @@ rules:
     paths:
       include: ["*.java"]
       exclude: ["*Test.java"]
-    pattern-regex: '(?i)String\s+\w*(password|passwd|secret|apikey|api_key|appsecret)\w*\s*=\s*"(?![A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+")(?![a-z]+(?:_[a-z]+)+")[^"]{4,}"'
+    patterns:
+      - pattern-regex: '(?i)String\s+\w*(password|passwd|secret|apikey|api_key|appsecret)\w*\s*=\s*"(?!(?-i:[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+)")(?!(?-i:[a-z]+(?:_[a-z]+)+)")[^"]{4,}"'
+      # 마스킹 플레이스홀더는 시크릿이 아니다 — 오히려 가리는 코드다
+      - pattern-not-regex: '(?i)["''`](\*{3,}|x{3,}|•{3,}|\.{4,}|#{3,}|_{4,}|redacted|<[^>]*redact[^>]*>|change[_-]?me|placeholder|dummy|your[_-][\w-]*|todo|fixme)["''`]|[:=]\s*(\*{3,}|•{3,}|#{3,})(?![\w-])'
 
   - id: finguard.java.weak-hash
     languages: [regex]

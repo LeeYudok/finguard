@@ -23,9 +23,16 @@ func (c CLI) Scan(ctx context.Context, rulesPath, targetDir string) ([]Finding, 
 	if bin == "" {
 		bin = "semgrep"
 	}
-	cmd := exec.CommandContext(ctx, bin, "scan",
+	args := []string{"scan",
 		"--sarif", "--quiet", "--metrics=off", "--disable-version-check",
-		"--config", rulesPath, targetDir)
+		"--config", rulesPath}
+	// 운영 코드가 아닌 경로(의존성·빌드 산출물·생성 파일)는 점검하지 않는다.
+	// 개발자가 고칠 수 없는 코드에 코멘트가 달리면 실제 지적이 묻힌다.
+	for _, ex := range DefaultExcludes {
+		args = append(args, "--exclude", ex)
+	}
+	args = append(args, targetDir)
+	cmd := exec.CommandContext(ctx, bin, args...)
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
