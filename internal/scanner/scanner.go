@@ -18,21 +18,26 @@ type CLI struct {
 	Bin string // 비면 "semgrep"
 }
 
-func (c CLI) Scan(ctx context.Context, rulesPath, targetDir string) ([]Finding, error) {
-	bin := c.Bin
-	if bin == "" {
-		bin = "semgrep"
-	}
+// scanArgs 는 semgrep 실행 인자를 조립한다. 외부 프로세스 없이 검증할 수 있도록
+// 순수 함수로 분리했다 — 제외 경로가 조용히 누락되면 노이즈가 그대로 돌아온다.
+func scanArgs(rulesPath, targetDir string, excludes []string) []string {
 	args := []string{"scan",
 		"--sarif", "--quiet", "--metrics=off", "--disable-version-check",
 		"--config", rulesPath}
 	// 운영 코드가 아닌 경로(의존성·빌드 산출물·생성 파일)는 점검하지 않는다.
 	// 개발자가 고칠 수 없는 코드에 코멘트가 달리면 실제 지적이 묻힌다.
-	for _, ex := range DefaultExcludes {
+	for _, ex := range excludes {
 		args = append(args, "--exclude", ex)
 	}
-	args = append(args, targetDir)
-	cmd := exec.CommandContext(ctx, bin, args...)
+	return append(args, targetDir)
+}
+
+func (c CLI) Scan(ctx context.Context, rulesPath, targetDir string) ([]Finding, error) {
+	bin := c.Bin
+	if bin == "" {
+		bin = "semgrep"
+	}
+	cmd := exec.CommandContext(ctx, bin, scanArgs(rulesPath, targetDir, DefaultExcludes)...)
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
