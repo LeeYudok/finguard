@@ -16,14 +16,18 @@ rules:
       - pattern-not-regex: '(?i)["''`](\*{3,}|x{3,}|•{3,}|\.{4,}|#{3,}|_{4,}|redacted|<[^>]*redact[^>]*>|change[_-]?me|placeholder|dummy|your[_-][\w-]*|todo|fixme)["''`]|[:=]\s*(\*{3,}|•{3,}|#{3,})(?![\w-])'
 
   # 2. 취약 해시 (CWE-328)
+  #   - MessageDigest/Mac 직접 호출 외에, 알고리즘명을 문자열로 받는 사내 래퍼
+  #     (CryptUtil.encrypt("MD5", ...) 류)와 DigestUtils.md5Hex 계열까지 본다 (#28).
+  #     거래소 서명 유틸이 이 형태로 MD5 를 쓰고 있었는데 기존 패턴은 전혀 보지 못했다.
+  #   - \s 는 개행을 포함하므로 인자가 다음 줄로 넘어가도 매칭된다.
   - id: finguard.kotlin.weak-hash
     languages: [regex]
     severity: WARNING
-    message: 취약한 해시 알고리즘(MD5/SHA-1)을 사용하고 있습니다. SHA-256 이상을 사용해야 합니다.
+    message: 취약한 해시 알고리즘(MD5/SHA-1)을 사용하고 있습니다. SHA-256 이상(서명은 HMAC-SHA256)을 사용해야 합니다.
     paths:
       include: ["*.kt", "*.kts"]
       exclude: ["*Test.kt", "*Test.kts"]
-    pattern-regex: 'MessageDigest\.getInstance\(\s*"(?i:MD5|SHA-?1)"'
+    pattern-regex: '(?:MessageDigest|Mac)\.getInstance\(\s*"(?i:MD5|SHA-?1|HmacMD5|HmacSHA-?1)"|\b(?:DigestUtils|Hashing)\.(?:md5|sha1)\w*\s*\(|\b\w*(?i:digest|hash|encrypt|sign|hmac)\w*\s*\(\s*"(?i:MD5|SHA-?1|HmacMD5|HmacSHA-?1)"'
 
   # 3. 취약 암호 알고리즘/운영모드 (CWE-327)
   #   - DES/RC4/Blowfish, 블록암호 ECB. RSA/ECB(JCA 표기 관행)는 제외.
@@ -51,6 +55,15 @@ rules:
     pattern-regex: '(?im)^(?![ \t]*(?://|\*))(?:.*\b)?(?:\b(?:iv|key|seed)\b|\w*(?:securekey|secretkey|seckey|sessionkey|privatekey|cryptokey|token|salt|nonce|otp|passwd|password|secret)\w*)\s*(?:\[[^\]]*\])?\s*[-+]?=\s*[^=][^;\n]*\b(?:Math\.random\s*\(|java\.util\.Random\s*\(|kotlin\.random\.Random\b|(?<!Secure)Random\s*\()'
 
   # 5. 민감정보 로깅 (CWE-532)
+  #   - 싱크를 Android Log.* 에서 서버측 로깅(slf4j log/logger.*, println, System.out.print*)
+  #     까지 넓혔다 (#28). Kotlin Spring Boot 백엔드는 Log.d 를 쓰지 않아 종전 패턴이
+  #     한 건도 발화하지 않았다.
+  #   - 오탐 억제는 "라인 단위 mask/redact 어휘 제외" 를 쓰지 않는다. 검증에서
+  #     log.debug("card=${mask(cardNo)}, password=$password") 처럼 한 필드만 마스킹하고
+  #     다른 필드를 흘리는 라인을 통째로 지운다는 반박이 나왔다 — 마스킹 누락은 보통
+  #     이 부분 마스킹 형태로 나타난다.
+  #   - availableTokens/tokenBucket 등 레이트리밋 식별자는 어휘 조건이 \btoken\b 경계라
+  #     애초에 매칭되지 않는다(제외 목록 불필요). 회귀는 safe_kotlin_server.kt 로 고정.
   - id: finguard.kotlin.log-sensitive
     languages: [regex]
     severity: WARNING
@@ -58,19 +71,21 @@ rules:
     paths:
       include: ["*.kt", "*.kts"]
       exclude: ["*Test.kt", "*Test.kts"]
-    pattern-regex: '(?im)^(?![ \t]*(?://|\*)).*\bLog\.[dviwe]\s*\((?:(?:"(?:\\.|[^"\\\n])*"|[^"\n])*?\b(?:password|passwd|secret|token|pin|ssn|dataBody|responseBody)\b|[^\n]*?\$\{?[\w.]*\b(?:password|passwd|secret|token|pin|ssn|dataBody|responseBody)\b)'
+    pattern-regex: '(?im)^(?![ \t]*(?://|\*)).*\b(?:Log\.[dviwe]|log(?:ger)?\.(?:trace|debug|info|warn|error)|println|System\.out\.print(?:ln)?)\s*\((?:(?:"(?:\\.|[^"\\\n])*"|[^"\n])*?\b(?:password|passwd|secret|token|pin|ssn|dataBody|responseBody)\b|[^\n]*?\$\{?[\w.]*\b(?:password|passwd|secret|token|pin|ssn|dataBody|responseBody)\b)'
 
   # 6. SQL 문자열 조립 (CWE-89)
-  #   - rawQuery/execSQL 에 문자열 템플릿($var) 또는 + 연결.
+  #   - rawQuery/execSQL(Android) 에 더해 서버측 싱크(JPA createQuery/createNativeQuery,
+  #     Hibernate createSQLQuery, Spring jdbcTemplate.*)를 추가했다 (#28).
+  #   - 문자열 템플릿($var) 또는 + 연결이 싱크 인자에 직접 붙은 경우만.
   #   - ? 바인딩(PreparedStatement 대응)은 제외. 주석(//) 제외.
   - id: finguard.kotlin.sql-raw
     languages: [regex]
     severity: ERROR
-    message: SQL 문을 문자열 조립(템플릿·연결)으로 만들고 있습니다. 파라미터 바인딩(?, selectionArgs)을 사용해야 합니다.
+    message: SQL 문을 문자열 조립(템플릿·연결)으로 만들고 있습니다. 파라미터 바인딩(?, selectionArgs, setParameter)을 사용해야 합니다.
     paths:
       include: ["*.kt", "*.kts"]
       exclude: ["*Test.kt", "*Test.kts"]
-    pattern-regex: '(?im)^(?![ \t]*(?://|\*)).*\b(?:rawQuery|execSQL)\s*\(\s*(?:"[^"]*\$\{?[A-Za-z_][^"]*"|"[^"]*"\s*\+|[^,()]*\+\s*"[^"]*")'
+    pattern-regex: '(?im)^(?![ \t]*(?://|\*)).*\b(?:rawQuery|execSQL|createQuery|createNativeQuery|createSQLQuery|jdbcTemplate\.(?:query|update|execute|queryForObject|queryForList|queryForMap|batchUpdate))\s*\(\s*(?:"[^"]*\$\{?[A-Za-z_][^"]*"|"[^"]*"\s*\+|[^,()]*\+\s*"[^"]*")'
 
   # 7. WebView JavaScript 활성화 (CWE-749)
   - id: finguard.kotlin.webview-js-enabled
@@ -162,3 +177,163 @@ rules:
     paths:
       include: ["*.kt", "*.java"]
     pattern-regex: 'PendingIntent\.(?:getActivity|getService|getBroadcast|getForegroundService)\([^;]*FLAG_MUTABLE'
+
+  # ──────────────────────────────────────────────────────────────────────────
+  # Kotlin 서버(Spring Boot) 룰 (#28)
+  #
+  # 위 14개 룰은 전부 Android 관용구라 Kotlin 백엔드에서 한 건도 발화하지 않았다.
+  # 아래는 서버측 전용이며, taint 룰은 languages:[kotlin] 로 Kotlin 문법 그대로 작성한다.
+  # java.yaml 의 taint 룰에 `kotlin` 을 얹는 방식은 쓰지 않았다 — 그 패턴들이
+  # `new File(...)` 처럼 Kotlin 에 없는 `new` 생성자 문법에 의존해 Kotlin 파일에서는
+  # 0 findings 이고, Java 검출까지 흔들 위험만 있다(이슈 #28 검증 절).
+  # ──────────────────────────────────────────────────────────────────────────
+
+  # 15. Feign/HTTP 클라이언트 전체 로깅 (CWE-532)
+  #   - feign Logger.Level.FULL 은 요청·응답의 헤더와 본문을 통째로 로그에 남긴다.
+  #     PG·오픈뱅킹 연동 클라이언트에서는 Authorization 헤더와 결제 응답이 그대로 흐른다.
+  - id: finguard.kotlin.feign-full-logging
+    languages: [regex]
+    severity: WARNING
+    message: Feign 로깅 레벨이 FULL 입니다. 요청·응답 헤더와 본문이 통째로 로그에 남아 연동 시크릿(Authorization)·결제 응답이 노출됩니다. BASIC 이하로 낮추거나 민감 헤더를 마스킹해야 합니다.
+    paths:
+      include: ["*.kt", "*.kts"]
+      exclude: ["*Test.kt", "*Test.kts"]
+    pattern-regex: '(?m)^(?![ \t]*(?://|\*)).*\bLogger\.Level\.(?:FULL|HEADERS)\b'
+
+  # 16. 배포본에 남은 개발용 인증 우회 엔드포인트 (CWE-489)
+  #   - 매핑 경로에 dev/local/test/debug 세그먼트가 있고 인증 관련 어휘가 함께 오는 경우.
+  #   - 일반 업무 API(/api/v1/events 등)는 dev 세그먼트가 없어 걸리지 않는다.
+  - id: finguard.kotlin.dev-backdoor-endpoint
+    languages: [regex]
+    severity: ERROR
+    message: 개발·로컬 전용 인증 우회 엔드포인트가 소스에 남아 있습니다. 프로파일 분리로 운영 배포본에서 제거하거나 별도 인증을 걸어야 합니다.
+    paths:
+      include: ["*.kt", "*.kts"]
+      exclude: ["*Test.kt", "*Test.kts"]
+    pattern-regex: '(?im)^(?![ \t]*(?://|\*)).*@(?:Get|Post|Put|Patch|Delete|Request)Mapping\s*\(\s*(?:value\s*=\s*)?"[^"]*/(?:dev|develop|local|test|debug|stub|mock)[\w-]*/[^"]*(?:login|signin|token|auth|admin|impersonat|su)[^"]*"'
+
+  # 17. 스택트레이스 노출 (CWE-209)
+  #   - printStackTrace 는 예외 내부 구조(쿼리·경로·라이브러리 버전)를 표준에러로 흘리고
+  #     로깅 파이프라인을 우회해 마스킹도 적용되지 않는다.
+  - id: finguard.kotlin.stacktrace-exposure
+    languages: [regex]
+    severity: WARNING
+    message: printStackTrace 로 예외 스택트레이스를 그대로 출력하고 있습니다. 로거로 보내고 사용자 응답에는 내부 정보를 포함하지 않아야 합니다.
+    paths:
+      include: ["*.kt", "*.kts"]
+      exclude: ["*Test.kt", "*Test.kts"]
+    pattern-regex: '(?m)^(?![ \t]*(?://|\*)).*\.printStackTrace\s*\('
+
+  # 18. 경로 조작 및 자원 삽입 (CWE-22) — Kotlin taint
+  #   - OS 명령 삽입은 별도 taint 룰을 두지 않는다. 위 finguard.kotlin.os-command 가
+  #     이미 모든 Runtime.exec/ProcessBuilder 를 ERROR 로 잡고 있어 같은 줄에 코멘트만
+  #     두 번 달린다.
+  - id: finguard.kotlin.path-traversal
+    languages: [kotlin]
+    severity: ERROR
+    message: 외부 입력이 검증 없이 파일 경로로 사용되고 있습니다. 파일명만 취해(basename) 기준 디렉터리 하위인지 정규화 후 확인해야 합니다.
+    paths:
+      include: ["*.kt", "*.kts"]
+      exclude: ["*Test.kt", "*Test.kts"]
+    mode: taint
+    pattern-sources:
+      - pattern: $REQ.getParameter(...)
+      - pattern: $REQ.getHeader(...)
+      - patterns:
+          - pattern-either:
+              - pattern-inside: |
+                  fun $F(..., @$ANN $X : $T, ...) { ... }
+              - pattern-inside: |
+                  fun $F(..., @$ANN $X : $T, ...) = ...
+              - pattern-inside: |
+                  fun $F(..., @$ANN(...) $X : $T, ...) { ... }
+              - pattern-inside: |
+                  fun $F(..., @$ANN(...) $X : $T, ...) = ...
+          - metavariable-regex:
+              metavariable: $ANN
+              regex: ^(RequestParam|PathVariable|RequestHeader|CookieValue|ModelAttribute|RequestPart)$
+          - pattern: $X
+    pattern-sanitizers:
+      # basename 만 취한 값은 상위 경로(..)를 벗어날 수 없다.
+      - pattern: FilenameUtils.getName(...)
+      - pattern: File(...).name
+      - pattern: $P.fileName
+    pattern-sinks:
+      # File(x).name 처럼 basename 추출 목적의 생성은 싱크가 아니다.
+      - patterns:
+          - pattern-either:
+              - pattern: File(...)
+              - pattern: FileInputStream(...)
+              - pattern: FileOutputStream(...)
+              - pattern: Paths.get(...)
+          - pattern-not-inside: File(...).name
+          - pattern-not-inside: FilenameUtils.getName(...)
+
+  # 19. 서버측 요청 위조 (CWE-918) — Kotlin taint
+  - id: finguard.kotlin.ssrf
+    languages: [kotlin]
+    severity: WARNING
+    message: 외부 입력이 서버가 호출할 URL 로 사용되고 있습니다. 호스트 허용목록으로 제한해야 합니다.
+    paths:
+      include: ["*.kt", "*.kts"]
+      exclude: ["*Test.kt", "*Test.kts"]
+    mode: taint
+    pattern-sources:
+      - pattern: $REQ.getParameter(...)
+      - pattern: $REQ.getHeader(...)
+      - patterns:
+          - pattern-either:
+              - pattern-inside: |
+                  fun $F(..., @$ANN $X : $T, ...) { ... }
+              - pattern-inside: |
+                  fun $F(..., @$ANN $X : $T, ...) = ...
+              - pattern-inside: |
+                  fun $F(..., @$ANN(...) $X : $T, ...) { ... }
+              - pattern-inside: |
+                  fun $F(..., @$ANN(...) $X : $T, ...) = ...
+          - metavariable-regex:
+              metavariable: $ANN
+              regex: ^(RequestParam|PathVariable|RequestHeader|CookieValue|ModelAttribute|RequestPart)$
+          - pattern: $X
+    # 싱크는 "URL 생성" 이 아니라 "실제 호출" 이다. URL(target) 만 만들고 호스트
+    # 허용목록을 검사하는 정상 코드가 흔해서, 생성 자체를 싱크로 두면 오탐이 된다.
+    pattern-sinks:
+      - pattern: URL(...).readText(...)
+      - pattern: URL(...).readBytes(...)
+      - pattern: $U.openConnection(...)
+      - pattern: $U.openStream(...)
+      - pattern: $RT.getForObject(...)
+      - pattern: $RT.getForEntity(...)
+      - pattern: $RT.postForObject(...)
+      - pattern: $RT.postForEntity(...)
+      - pattern: $RT.exchange(...)
+
+  # 20. 검증되지 않은 리다이렉트 (CWE-601) — Kotlin taint
+  - id: finguard.kotlin.open-redirect
+    languages: [kotlin]
+    severity: WARNING
+    message: 외부 입력이 리다이렉트 대상 URL 로 사용되고 있습니다. 상대경로 허용목록으로 제한해야 합니다.
+    paths:
+      include: ["*.kt", "*.kts"]
+      exclude: ["*Test.kt", "*Test.kts"]
+    mode: taint
+    pattern-sources:
+      - pattern: $REQ.getParameter(...)
+      - pattern: $REQ.getHeader(...)
+      - patterns:
+          - pattern-either:
+              - pattern-inside: |
+                  fun $F(..., @$ANN $X : $T, ...) { ... }
+              - pattern-inside: |
+                  fun $F(..., @$ANN $X : $T, ...) = ...
+              - pattern-inside: |
+                  fun $F(..., @$ANN(...) $X : $T, ...) { ... }
+              - pattern-inside: |
+                  fun $F(..., @$ANN(...) $X : $T, ...) = ...
+          - metavariable-regex:
+              metavariable: $ANN
+              regex: ^(RequestParam|PathVariable|RequestHeader|CookieValue|ModelAttribute|RequestPart)$
+          - pattern: $X
+    pattern-sinks:
+      - pattern: $RESP.sendRedirect(...)
+      - pattern: RedirectView(...)
