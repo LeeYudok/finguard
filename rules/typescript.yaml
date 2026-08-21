@@ -35,7 +35,7 @@ rules:
     message: 소스코드에 비밀정보(비밀번호·API 키·토큰)가 하드코드되어 있습니다.
     paths:
       include: ["*.ts", "*.tsx", "*.js", "*.jsx"]
-      exclude: ["*.test.ts", "*.spec.ts", "*.test.tsx", "*.spec.tsx", "*.test.js", "*.spec.js", "*.test.jsx", "*.spec.jsx"]
+      exclude: ["*.test.ts", "*.spec.ts", "*.test.tsx", "*.spec.tsx", "*.test.js", "*.spec.js", "*.test.jsx", "*.spec.jsx", "**/test/**", "**/tests/**", "**/__tests__/**", "test_*.ts", "test_*.tsx", "test_*.js", "test_*.jsx"]
     patterns:
       - pattern-regex: '(?i)\b\w*(password|passwd|pwd|secret|api[_-]?key|access[_-]?token|refresh[_-]?token|auth[_-]?token|credential|passphrase|private[_-]?key|signing[_-]?key|encrypt(?:ion)?[_-]?key|master[_-]?key|aes[_-]?key|hmac[_-]?key)\w*["'']?\s*(?::\s*[\w<>\[\].|?]+\s*)?[:=]{1,3}\s*(?:"(?!(?-i:[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+)")(?!(?-i:[a-z]+(?:_[a-z]+)+)")[^"%/{][^"]{7,}"|''(?![A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+'')(?![a-z]+(?:_[a-z]+)+'')[^''%/{][^'']{7,}'')'
       # 마스킹 플레이스홀더는 시크릿이 아니다 — 오히려 가리는 코드다
@@ -58,7 +58,7 @@ rules:
     severity: ERROR
     message: 테스트 코드에 비밀정보(비밀번호·API 키·토큰)가 하드코드되어 있습니다. 저장소와 git 히스토리에 그대로 남으므로 운영 코드와 동일하게 제거·회전해야 합니다.
     paths:
-      include: ["*.test.ts", "*.spec.ts", "*.test.tsx", "*.spec.tsx", "*.test.js", "*.spec.js", "*.test.jsx", "*.spec.jsx"]
+      include: ["*.test.ts", "*.spec.ts", "*.test.tsx", "*.spec.tsx", "*.test.js", "*.spec.js", "*.test.jsx", "*.spec.jsx", "**/test/**", "**/tests/**", "**/__tests__/**", "test_*.ts", "test_*.tsx", "test_*.js", "test_*.jsx"]
     patterns:
       - pattern-regex: '(?i)\b\w*(password|passwd|pwd|secret|api[_-]?key|access[_-]?token|refresh[_-]?token|auth[_-]?token|credential|passphrase|private[_-]?key|signing[_-]?key|encrypt(?:ion)?[_-]?key|master[_-]?key|aes[_-]?key|hmac[_-]?key)\w*["'']?\s*(?::\s*[\w<>\[\].|?]+\s*)?[:=]{1,3}\s*(?:"(?=[0-9]{12,}|[A-Za-z0-9+/=_.\-]{16,}|(?=[^"]{12,})(?=[^"]*[A-Za-z])(?=[^"]*[0-9]))(?!https?://)(?!jdbc:)(?!(?-i:[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+)")(?!(?-i:[a-z]+(?:_[a-z]+)+)")[^"%/{][^"]{7,}"|''(?=[0-9]{12,}|[A-Za-z0-9+/=_.\-]{16,}|(?=[^'']{12,})(?=[^'']*[A-Za-z])(?=[^'']*[0-9]))(?!https?://)(?!jdbc:)(?![A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+'')(?![a-z]+(?:_[a-z]+)+'')[^''%/{][^'']{7,}'')'
       - pattern-not-regex: '(?i)["''`](\*{3,}|x{3,}|•{3,}|\.{4,}|#{3,}|_{4,}|redacted|<[^>]*redact[^>]*>|change[_-]?me|placeholder|dummy|your[_-][\w-]*|todo|fixme)["''`]|[:=]\s*(\*{3,}|•{3,}|#{3,})(?![\w-])'
