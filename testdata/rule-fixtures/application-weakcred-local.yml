@@ -1,0 +1,12 @@
+# finguard.config.plaintext-secret-nonprod → weak-credential 인계 픽스처 (#63).
+#
+# 로컬 프로파일은 plaintext-secret 의 exclude 라 nonprod(WARNING) 소관이다.
+# 그쪽에도 반복 필러 억제가 들어갔으므로, 같은 값이 weak-credential 로 넘어오는지
+# (= 무검출 구간이 생기지 않는지) 확인한다.
+auth:
+  jwt:
+    # EXPECT: finguard.config.weak-credential
+    secret-key: testkeytestkeytestkeytestkeytest
+    # 난수 값은 그대로 nonprod 가 잡는다 — 억제가 과하지 않은지 고정
+    # EXPECT: finguard.config.plaintext-secret-nonprod
+    refresh-secret: Zk7Qp3mXv9Lr2Ns8Td4Yb6Hc

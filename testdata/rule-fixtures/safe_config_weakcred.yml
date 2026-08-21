@@ -1,0 +1,11 @@
+# 대조군 (#63) — 어떤 룰에도 걸리면 안 된다. 마커를 가질 수 없다.
+app:
+  # 환경변수 치환이 정답이다
+  secret-key: ${JWT_SECRET_KEY}
+  db-password: ${DB_PASSWORD}
+  # 마스킹 플레이스홀더
+  masked-api-key: xxxxxxxxxx
+  # 반복이지만 6자 미만
+  short-pwd: aaa
+  # 자격증명 어휘가 아닌 키
+  pool-size: 10

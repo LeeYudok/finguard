@@ -1855,4 +1855,22 @@
     const apiKey = process.env.TEST_API_KEY;
     const maybe = apiKey ? describe : describe.skip;
     maybe("결제 연동", () => { /* ... */ });
+
+- rule_id: finguard.config.weak-credential
+  code: FIN-PWD-001
+  cwe: CWE-521
+  title: 약한 자격증명(반복 패턴 값)
+  severity: WARNING
+  basis: 개발보안가이드 「보안기능 - 취약한 비밀번호 허용」
+  kisa_item: "전자금융기반시설 평가기준(2026) 웹·모바일·HTS 24 (유추 가능한 인증정보 이용 방지)"
+  explain: 설정파일의 자격증명 값이 같은 토큰의 반복(testkeytestkeytestkey·aaaaaaaa 형태)입니다. 자리표시자로 넣어 둔 더미라면 환경변수 치환으로 바꾸고, 실제 접속에 쓰이는 값이라면 유추 가능한 인증정보이므로 즉시 교체해야 합니다. 반복 패턴은 사전·규칙 기반 대입 공격의 1순위 후보입니다.
+  fix_example: |
+    ```yaml
+    # 값은 파일에 두지 않고 환경변수로 치환한다.
+    auth:
+      jwt:
+        secret-key: ${JWT_SECRET_KEY}
+
+    # 부득이하게 로컬 기본값이 필요하면 반복 패턴이 아닌 난수를 쓴다.
+    #   openssl rand -base64 32
     ```

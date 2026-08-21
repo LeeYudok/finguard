@@ -96,6 +96,12 @@ rules:
       #   대소문자 무시 플래그를 켜면 안 된다 — (?i) 아래에서는 [A-Z] 가 소문자까지 먹어
       #   `secret-key: test_sk_...` 같은 실키를 CONSTANT_CASE 로 오인해 억제한다(실측).
       - pattern-not-regex: '(?m)^[ \t]*["'']?[\w.-]+["'']?[ \t]*[:=][ \t]*["'']?(?:[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+)["'']?[ \t]*(?:#.*)?$'
+      # 값이 같은 토큰의 되풀이로 시작하는 반복 필러는 시크릿이 아니다 (#23 (d), #63).
+      # 억제만 하면 평가기준 24(유추 가능한 인증정보) 대상이 사라지므로,
+      # 같은 값을 finguard.config.weak-credential(WARNING)이 이어받는다 — 두 룰은
+      # 이 정규식을 공유해 정확히 상호배타다. 한쪽만 고치면 중복 코멘트 또는 무검출이 된다.
+      # (semgrep 은 YAML 앵커/별칭을 해석하지 못한다 — 세 룰에 같은 문자열을 그대로 복제한다)
+      - pattern-not-regex: '(?im)^[ \t]*(?:export[ \t]+)?(-[ \t]+)?["'']?[\w.-]+["'']?[ \t]*[:=][ \t]*["''`]?(?=[A-Za-z0-9_-]*[A-Za-z0-9])([A-Za-z0-9_-]{2,12})\2{2,}[A-Za-z0-9_-]*["''`]?[ \t]*[,;)]*[ \t]*(?:#.*|//.*)?$'
       # pattern-not-regex 는 검출 범위를 "포함"할 때만 억제된다(semgrep 1.169.0 실측).
       # 값 부분만 매칭하는 정규식은 필터로 동작하지 않으므로 아래 억제 패턴은 줄 전체를 잡는다.
       #
@@ -167,6 +173,8 @@ rules:
       # 시크릿 저장소 참조는 시크릿이 아니라 올바른 사용법이다
       - pattern-not-regex: '(?im)^\s*["'']?[\w.-]+["'']?\s*[:=]\s*["'']?(\$|\{\{|<%|%\(|env:|secretKeyRef|valueFrom|vault:|aws:|arn:).*$'
       - pattern-not-regex: '(?im)^\s*["'']?[\w.-]+["'']?\s*[:=]\s*["'']?[\w-]{0,6}\.{2,}["'']?\s*$'
+      # 반복 필러 → finguard.config.weak-credential(WARNING) 담당 (#23 (d), #63)
+      - pattern-not-regex: '(?im)^[ \t]*(?:export[ \t]+)?(-[ \t]+)?["'']?[\w.-]+["'']?[ \t]*[:=][ \t]*["''`]?(?=[A-Za-z0-9_-]*[A-Za-z0-9])([A-Za-z0-9_-]{2,12})\2{2,}[A-Za-z0-9_-]*["''`]?[ \t]*[,;)]*[ \t]*(?:#.*|//.*)?$'
 
   # ── 결제·인증 패키지 debug/trace 로깅 (CWE-532) (#32) ────────────────────────
   #
@@ -283,6 +291,8 @@ rules:
       - pattern-not-regex: '(?im)^\s*["'']?[\w.-]+["'']?\s*[:=]\s*["'']?(\$|\{\{|<%|%\(|env:|secretKeyRef|valueFrom|vault:|aws:|arn:).*$'
       - pattern-not-regex: '(?im)^\s*[\w.-]+\s*:=.*$'
       - pattern-not-regex: '(?im)^\s*["'']?[\w.-]+["'']?\s*[:=]\s*[\w.]+[(\[].*$'
+      # 반복 필러 → finguard.config.weak-credential(WARNING) 담당 (#23 (d), #63)
+      - pattern-not-regex: '(?im)^[ \t]*(?:export[ \t]+)?(-[ \t]+)?["'']?[\w.-]+["'']?[ \t]*[:=][ \t]*["''`]?(?=[A-Za-z0-9_-]*[A-Za-z0-9])([A-Za-z0-9_-]{2,12})\2{2,}[A-Za-z0-9_-]*["''`]?[ \t]*[,;)]*[ \t]*(?:#.*|//.*)?$'
 
   # 로컬·테스트 프로파일이라도 값이 고신뢰 벤더 프리픽스면 실제로 유효한 키다 (#25).
   # 파일명으로 severity 를 깎으면 이 구간이 게이트를 통과해 버리므로 ERROR 로 승격한다.
@@ -322,3 +332,80 @@ rules:
     patterns:
       - pattern-regex: '(?i)^[ \t]*["'']?[\w.-]+["'']?[ \t]*[:=][ \t]*["'']?(?:sk_live_|sk_test_|rk_live_|pk_live_|test_sk_|live_sk_|imp_|ghp_|gho_|github_pat_|xoxb-|xoxp-|AKIA|AIza)[A-Za-z0-9_\-]{8,}'
       - pattern-not-regex: '(?im)^\s*["'']?[\w.-]+["'']?\s*[:=]\s*["'']?(\$|\{\{|<%|%\(|env:|secretKeyRef|valueFrom|vault:).*$'
+
+  # 약한 자격증명 — 반복 패턴 값 (#63, #23 (d) 의 보상통제).
+  #
+  # 위 세 시크릿 룰(plaintext-secret · plaintext-secret-nonprod · ci.plaintext-secret)은
+  # `secret-key: testkeytestkeytestkey…` 같은 반복 필러를 억제한다. 억제만 하면 그 값이
+  # 무검출이 되는데, 반복 패턴 값은 "플레이스홀더" 이기 이전에 **유추 가능한 인증정보**라
+  # 전자금융기반시설 평가기준 24 의 점검 대상이다. 억제된 값을 이 룰이 그대로 이어받아
+  # WARNING 으로 남긴다 — 그래야 감사에서 '점검 누락' 이 되지 않는다.
+  #
+  # 상호배타 보장: 세 룰의 억제 정규식과 이 룰의 탐지 정규식은 값 부분이 글자 그대로
+  # 같아야 한다(semgrep 이 YAML 앵커를 해석하지 못해 복제로 유지한다). 한쪽만 고치면
+  # 같은 줄에 ERROR·WARNING 이 중복으로 달리거나 반대로 아무것도 안 달린다.
+  # 회귀 픽스처 testdata/rule-fixtures/config_weak_credential.yml 이 양방향으로 고정한다.
+  #
+  # 의도적으로 좁힌 범위 — 오탐이 터지기 쉬운 룰이라 "확실한 반복" 만 본다.
+  #   - 연속 문자(`12345678`·`qwerty`)·사전어 단독값은 넣지 않았다. 그 값들은 위 시크릿
+  #     룰이 이미 ERROR 로 잡고 있어, 여기서 다시 잡으면 같은 줄에 코멘트가 두 번 달린다.
+  #     WARNING 으로 옮기려면 기존 ERROR 통제를 낮추는 것이라 별도 판단이 필요하다.
+  #   - 값에 영숫자·`_`·`-` 외의 문자가 있으면 보지 않는다(`P@ssw0rd!` 형태 제외) —
+  #     특수문자가 섞인 값은 실제 자격증명일 확률이 높아 시크릿 룰 소관으로 남긴다.
+  #   - 토큰 최소 2자 × 3회 = 최소 6자. 그보다 짧은 값은 판단 근거가 약하다.
+  #   - 언어 룰(python·java·kotlin·go·shell·swift·typescript)에는 억제도 이 룰도 넣지
+  #     않았다. 억제가 없으니 보상통제도 필요 없고(무검출 구간이 생기지 않는다),
+  #     10개 실코드 코퍼스에서 언어 소스의 반복 필러는 테스트 파일 1건뿐이라
+  #     실증 근거 없이 무음 룰만 늘리게 된다.
+  - id: finguard.config.weak-credential
+    languages: [regex]
+    severity: WARNING
+    message: 설정파일의 자격증명 값이 같은 토큰의 반복(testkeytestkeytestkey·aaaaaaaa 형태)입니다. 더미 자리표시자라면 환경변수 치환으로 바꾸고, 실제로 쓰이는 값이라면 유추 가능한 인증정보이므로 즉시 교체해야 합니다.
+    paths:
+      # plaintext-secret · plaintext-secret-nonprod · ci.plaintext-secret 세 룰의
+      # include 합집합 — 셋 중 어디서 억제되든 이 룰이 받아야 구멍이 생기지 않는다.
+      include:
+        - "application*.yml"
+        - "application*.yaml"
+        - "*.properties"
+        - "*.yml"
+        - "*.yaml"
+        - ".env"
+        - ".env.*"
+        - "*.env"
+        - "config*.json"
+        - "appsettings*.json"
+        - "*.tfvars"
+        - "*.xcconfig"
+        - "*.example"
+        - "*.sample"
+        - ".github/workflows/**"
+        - "**/.github/workflows/**"
+        - ".gitlab-ci*.yml"
+        - "**/.gitlab-ci*.yml"
+        - "*gitlab-ci*.yml"
+        - ".circleci/**"
+        - "**/.circleci/**"
+      exclude:
+        - "**/node_modules/**"
+        - "**/vendor/**"
+        - "Pods/**"
+        - "**/*.lock"
+        - "**/package-lock.json"
+        # 어떤 시크릿 룰도 보지 않는 경로 — 억제된 값이 없으므로 이어받을 것도 없다
+        - "*.template"
+        - "*.dist"
+        - ".env.template"
+    patterns:
+      - pattern-regex: '(?i)^[ \t]*(?:export[ \t]+)?(-[ \t]+)?["'']?[\w.-]*(password|passwd|pwd|secret|api[_-]?key|token|credential|passphrase|private[_-]?key|signing[_-]?key|encrypt(?:ion)?[_-]?key|master[_-]?key|aes[_-]?key|hmac[_-]?key)[\w.-]*["'']?[ \t]*[:=][ \t]*["''`]?(?=[A-Za-z0-9_-]*[A-Za-z0-9])([A-Za-z0-9_-]{2,12})\3{2,}[A-Za-z0-9_-]*["''`]?[ \t]*[,;)]*[ \t]*(?:#.*|//.*)?$'
+      # 마스킹 플레이스홀더(xxxxxxxx·********)는 이미 시크릿 룰이 "가리는 코드" 로 보고
+      # 억제하는 값이다. 여기서 다시 잡으면 그 결정을 뒤집는 셈이라 같은 목록으로 억제한다.
+      - pattern-not-regex: '(?im)^[ \t]*(?:export[ \t]+)?(-[ \t]+)?["'']?[\w.-]+["'']?[ \t]*[:=][ \t]*["''`]?(\*{3,}|x{3,}|•{3,}|\.{4,}|#{3,}|_{4,}|redacted|change[_-]?me|placeholder|dummy|your[_-][\w-]*|todo|fixme)["''`]?[ \t]*[,;)]*[ \t]*(?:#.*|//.*)?$'
+      # 한국어 안내문은 시크릿도 자격증명도 아니라 입력 지시문이다 (#23)
+      - pattern-not-regex: '(?im)^[^\n]*[:=][ \t]*["''`]?[^"''`\n]*(입력[ \t]*(?:하세요|해[ \t]*주세요|해주세요|바랍니다|하십시오)|여기에?[ \t]*입력|발급[ \t]*받은|본인의|자신의|예시|샘플)[^\n]*$'
+      # 값 전체가 CONSTANT_CASE 인 스칼라는 상수명·자리표시자다 (#23)
+      - pattern-not-regex: '(?m)^[ \t]*["'']?[\w.-]+["'']?[ \t]*[:=][ \t]*["'']?(?:[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+)["'']?[ \t]*(?:#.*)?$'
+      # 컨테이너 부트스트랩 변수는 ci.plaintext-secret 과 같은 이유로 제외한다 —
+      # services:/image: 로 띄우는 일회성 로컬 자격증명이다
+      - pattern-not-regex: '(?im)^\s*["'']?(POSTGRES|POSTGRESQL|MYSQL|MARIADB|MONGO|MONGODB|REDIS|RABBITMQ|ELASTIC|MSSQL|SA)_[\w]*(PASSWORD|PASS)["'']?\s*[:=].*$'
+      - pattern-not-regex: '(?im)^\s*["'']?(MYSQL_ROOT_PASSWORD|MONGO_INITDB_ROOT_PASSWORD|SA_PASSWORD)["'']?\s*[:=].*$'
