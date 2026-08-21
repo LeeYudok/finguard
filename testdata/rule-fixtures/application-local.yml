@@ -1,0 +1,21 @@
+# 룰 회귀 픽스처 — finguard.config.plaintext-secret-nonprod / -vendorkey (#25).
+# 로컬 프로파일 설정은 더미가 지배적이라 WARNING 으로 강등하되, 값이 고신뢰 벤더
+# 프리픽스면 ERROR 로 승격한다. 값은 전부 합성 더미다.
+
+auth:
+  jwt:
+    # EXPECT: finguard.config.plaintext-secret-nonprod
+    secret-key: 8f2b41c7d90e5a63b18c47f2e0d95a31
+    access-exp: 86400
+
+toss:
+  # 로컬 파일이라도 벤더 프리픽스가 붙은 값은 실제로 유효한 키다 → ERROR 승격.
+  # EXPECT: finguard.config.plaintext-secret-vendorkey
+  secret-key: test_sk_ADpexMgkW36weAqp4bNVGbR5ozO0
+
+oauth:
+  kakao:
+    # 게이트에서 걸러지는 값 — 짧은 로컬 더미·CONSTANT_CASE·환경변수 참조
+    client-secret: local
+    admin-secret: DUMMY_LOCAL_ADMIN
+    api-key: ${KAKAO_API_KEY}

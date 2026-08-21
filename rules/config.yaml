@@ -44,6 +44,21 @@ rules:
         - ".env.example"
         - ".env.sample"
         - ".env.template"
+        # 로컬·개발·테스트 프로파일 설정은 finguard.config.plaintext-secret-nonprod(WARNING)
+        # 담당이다 (#25). 이 목록과 그 룰의 include 는 정확히 상호배타여야 한다 —
+        # 겹치면 같은 줄에 ERROR·WARNING 코멘트가 중복으로 달린다.
+        - "application*-local.yml"
+        - "application*-local.yaml"
+        - "application*-local.properties"
+        - "application*-test.yml"
+        - "application*-test.yaml"
+        - "application*-test.properties"
+        - "application*-dev.yml"
+        - "application*-dev.yaml"
+        - "application*-dev.properties"
+        - ".env.local"
+        - ".env.development"
+        - ".env.test"
         # CI 설정은 finguard.ci.plaintext-secret(WARNING) 담당
         - ".github/workflows/**"
         - "**/.github/workflows/**"
@@ -213,3 +228,97 @@ rules:
     pattern-either:
       - pattern-regex: '(?im)^[ \t]*(?:logging\.level\.)?[\w.$*-]*(?:pay(?:ment)?|pg|toss|inicis|kcp|nice|kftc|openbanking|card|auth|security|jdbc|sql)[\w.$*-]*[ \t]*[:=][ \t]*["'']?(?i:debug|trace)["'']?[ \t]*$'
       - pattern-regex: '(?is)<logger[^>]*name\s*=\s*"[^"]*(?:pay(?:ment)?|pg|toss|inicis|kcp|nice|kftc|openbanking|card|auth|security|jdbc|sql)[^"]*"[^>]*level\s*=\s*"(?i:debug|trace)"'
+
+  # 로컬·개발·테스트 프로파일 설정파일 (#25).
+  #
+  # 여기가 실제로 더미가 지배적인 유일한 구간이라 severity 를 WARNING 으로 낮춘다.
+  # 기본 게이트(FINGUARD_BLOCK_ON=ERROR)로는 머지를 막지 않지만 코멘트는 그대로 달린다 —
+  # 차단이 필요한 팀은 .finguard.yml 의 block_on 을 [ERROR, WARNING] 으로 올리면 된다.
+  # 반대로 값이 고신뢰 벤더 프리픽스면 아래 finguard.config.plaintext-secret-vendorkey 가
+  # ERROR 로 승격해 잡는다(두 룰은 pattern-not-regex 로 상호배타).
+  #
+  # include 는 finguard.config.plaintext-secret 의 exclude 와 정확히 상호배타다.
+  - id: finguard.config.plaintext-secret-nonprod
+    languages: [regex]
+    severity: WARNING
+    message: 로컬·테스트 프로파일 설정에 시크릿으로 보이는 값이 평문으로 들어 있습니다. 더미라면 무시해도 되지만, 운영 값을 복사해 둔 것이라면 즉시 제거·회전해야 합니다.
+    paths:
+      include:
+        - "application*-local.yml"
+        - "application*-local.yaml"
+        - "application*-local.properties"
+        - "application*-test.yml"
+        - "application*-test.yaml"
+        - "application*-test.properties"
+        - "application*-dev.yml"
+        - "application*-dev.yaml"
+        - "application*-dev.properties"
+        - ".env.local"
+        - ".env.development"
+        - ".env.test"
+        - "*.sample"
+        - "*.example"
+      exclude:
+        - "**/node_modules/**"
+        - "**/vendor/**"
+        - "Pods/**"
+        - "**/*.lock"
+        - "**/package-lock.json"
+        - ".github/workflows/**"
+        - "**/.github/workflows/**"
+        - ".gitlab-ci*.yml"
+        - "**/.gitlab-ci*.yml"
+        - "*gitlab-ci*.yml"
+        - ".circleci/**"
+        - "**/.circleci/**"
+    patterns:
+      - pattern-regex: '(?i)^[ \t]*["'']?[\w.-]*(password|passwd|pwd|secret|api[_-]?key|token|credential|passphrase|private[_-]?key|signing[_-]?key|encrypt(?:ion)?[_-]?key|master[_-]?key|aes[_-]?key|hmac[_-]?key)[\w.-]*["'']?[ \t]*[:=][ \t]*(?![ \t]*$)(?!\$\{)(?!ENC\()["'']?(?=[0-9]{12,}|[A-Za-z0-9+/=_.\-]{16,}|(?=[^\s"''#]{12,})(?=[^\s"''#]*[A-Za-z])(?=[^\s"''#]*[0-9]))(?!https?://)(?!jdbc:)[^\s"''#][^#\n]{3,}'
+      # 고신뢰 벤더 프리픽스는 vendorkey 룰(ERROR) 담당 — 중복 코멘트 방지
+      - pattern-not-regex: '(?i)^[ \t]*["'']?[\w.-]+["'']?[ \t]*[:=][ \t]*["'']?(?:sk_live_|sk_test_|rk_live_|pk_live_|test_sk_|live_sk_|imp_|ghp_|gho_|github_pat_|xoxb-|xoxp-|AKIA|AIza)[A-Za-z0-9_\-]{8,}'
+      - pattern-not-regex: '(?i)["''`](\*{3,}|x{3,}|•{3,}|\.{4,}|#{3,}|_{4,}|redacted|<[^>]*redact[^>]*>|change[_-]?me|placeholder|dummy|your[_-][\w-]*|todo|fixme)["''`]|[:=]\s*(\*{3,}|•{3,}|#{3,})(?![\w-])'
+      - pattern-not-regex: '(?im)^[ \t]*(?:export[ \t]+)?(-[ \t]+)?["'']?[\w.-]+["'']?[ \t]*[:=][ \t]*["''`]?(\*{3,}|x{3,}|•{3,}|\.{4,}|#{3,}|_{4,}|redacted|change[_-]?me|placeholder|dummy|your[_-][\w-]*|todo|fixme)["''`]?[ \t]*[,;)]*[ \t]*(?:#.*|//.*)?$'
+      - pattern-not-regex: '(?im)^[^\n]*[:=][ \t]*["''`]?[^"''`\n]*(입력[ \t]*(?:하세요|해[ \t]*주세요|해주세요|바랍니다|하십시오)|여기에?[ \t]*입력|발급[ \t]*받은|본인의|자신의|예시|샘플)[^\n]*$'
+      - pattern-not-regex: '(?m)^[ \t]*["'']?[\w.-]+["'']?[ \t]*[:=][ \t]*["'']?(?:[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+)["'']?[ \t]*(?:#.*)?$'
+      - pattern-not-regex: '(?im)^\s*["'']?[\w.-]+["'']?\s*[:=]\s*["'']?(true|false|null|none|nil|yes|no|on|off|required|optional|string|integer|boolean|object|array|number)["'']?\s*(#.*)?$'
+      - pattern-not-regex: '(?im)^\s*["'']?[\w.-]+["'']?\s*[:=]\s*["'']?(\$|\{\{|<%|%\(|env:|secretKeyRef|valueFrom|vault:|aws:|arn:).*$'
+      - pattern-not-regex: '(?im)^\s*[\w.-]+\s*:=.*$'
+      - pattern-not-regex: '(?im)^\s*["'']?[\w.-]+["'']?\s*[:=]\s*[\w.]+[(\[].*$'
+
+  # 로컬·테스트 프로파일이라도 값이 고신뢰 벤더 프리픽스면 실제로 유효한 키다 (#25).
+  # 파일명으로 severity 를 깎으면 이 구간이 게이트를 통과해 버리므로 ERROR 로 승격한다.
+  - id: finguard.config.plaintext-secret-vendorkey
+    languages: [regex]
+    severity: ERROR
+    message: 설정파일에 외부 서비스의 실제 발급 키(벤더 프리픽스 확인)가 평문으로 들어 있습니다. 로컬·테스트 프로파일이라도 유효한 자격증명이므로 즉시 제거하고 회전해야 합니다.
+    paths:
+      include:
+        - "application*-local.yml"
+        - "application*-local.yaml"
+        - "application*-local.properties"
+        - "application*-test.yml"
+        - "application*-test.yaml"
+        - "application*-test.properties"
+        - "application*-dev.yml"
+        - "application*-dev.yaml"
+        - "application*-dev.properties"
+        - ".env.local"
+        - ".env.development"
+        - ".env.test"
+        - "*.sample"
+        - "*.example"
+      exclude:
+        - "**/node_modules/**"
+        - "**/vendor/**"
+        - "Pods/**"
+        - "**/*.lock"
+        - "**/package-lock.json"
+        - ".github/workflows/**"
+        - "**/.github/workflows/**"
+        - ".gitlab-ci*.yml"
+        - "**/.gitlab-ci*.yml"
+        - "*gitlab-ci*.yml"
+        - ".circleci/**"
+        - "**/.circleci/**"
+    patterns:
+      - pattern-regex: '(?i)^[ \t]*["'']?[\w.-]+["'']?[ \t]*[:=][ \t]*["'']?(?:sk_live_|sk_test_|rk_live_|pk_live_|test_sk_|live_sk_|imp_|ghp_|gho_|github_pat_|xoxb-|xoxp-|AKIA|AIza)[A-Za-z0-9_\-]{8,}'
+      - pattern-not-regex: '(?im)^\s*["'']?[\w.-]+["'']?\s*[:=]\s*["'']?(\$|\{\{|<%|%\(|env:|secretKeyRef|valueFrom|vault:).*$'
