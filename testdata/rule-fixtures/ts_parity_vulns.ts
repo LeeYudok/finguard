@@ -40,8 +40,12 @@ export async function run(): Promise<void> {
 }
 
 // 하드코드된 암호화 키
+// 식별자를 ENCRYPT_KEY 에서 CIPHER_KEY 로 바꿨다 (#70). 어휘 이식 후 ENCRYPT_KEY 는
+// hardcoded-crypto-material 과 hardcoded-secret 에 동시에 걸리는데(둘 다 정탐이고
+// 근거 조항이 다르다), 마커는 줄당 하나뿐이라 이 줄에서 두 기대값을 표현할 수 없다.
+// cipher 어휘는 시크릿 공통 어휘에 없어 이 룰만 단독으로 검증된다.
 // EXPECT: finguard.ts.hardcoded-crypto-material
-const ENCRYPT_KEY = "A1b2C3d4E5f6G7h8";
+const CIPHER_KEY = "A1b2C3d4E5f6G7h8";
 
 // IV 가 없는 deprecated 암호 API
 // EXPECT: finguard.ts.hardcoded-crypto-material
@@ -67,4 +71,4 @@ const otpCode = String(Math.floor(Math.random() * 1000000));
 // EXPECT: finguard.ts.tls-verify-disabled
 const agent = new https.Agent({ rejectUnauthorized: false });
 
-export { ENCRYPT_KEY, legacyCipher, decipher, digest, ecbCipher, otpCode, agent };
+export { CIPHER_KEY, legacyCipher, decipher, digest, ecbCipher, otpCode, agent };
