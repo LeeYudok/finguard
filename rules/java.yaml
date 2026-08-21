@@ -495,3 +495,32 @@ rules:
               - metavariable-regex:
                   metavariable: $P
                   regex: '(?i)\w*(?:jwt|token)\w*'
+
+  # ------------------------------------------------------------------
+  # 11. 외부 연동 HTTP 클라이언트 전체 로깅 (CWE-532) (#32)
+  # ------------------------------------------------------------------
+  # 기존 로그 룰(finguard.java.print-sensitive)은 호출부 인자의 어휘만 보므로, 설정 한 줄로
+  # 모든 요청·응답 헤더와 본문을 흘리는 구조를 원리적으로 볼 수 없다. Feign Logger.Level.FULL
+  # 이 BasicAuth/Bearer 인터셉터와 결합하면 연동 시크릿이 담긴 Authorization 헤더와 결제 승인
+  # 응답 본문이 그대로 로그에 남는다.
+  #
+  # severity 는 WARNING 이다. FULL/BODY 로깅은 `if (BuildConfig.DEBUG)`·@Profile("local") 로
+  # 감싸인 경우가 흔한데 정규식은 그 감쌈을 보지 못한다 — ERROR 로 두면 기본 게이트
+  # (FINGUARD_BLOCK_ON=ERROR)가 로컬 전용 설정에 걸려 머지를 막는다.
+  # "같은 설정 클래스에 인증 헤더 인터셉터가 등록된 경우만 ERROR 승격" 은 semgrep 단독으로
+  # 판정할 수 없어(등록이 다른 파일에 있을 수 있다) 룰이 아니라 매핑 explain 의 일반 지침으로 옮겼다.
+  #
+  # paths 는 *.java 만이다. Kotlin 은 finguard.kotlin.feign-full-logging(#28)이 이미 담당한다 —
+  # 여기에 *.kt 를 넣으면 같은 줄에 코멘트가 두 번 달린다.
+  - id: finguard.java.http-client-full-logging
+    languages: [regex]
+    severity: WARNING
+    message: 외부 연동 HTTP 클라이언트가 요청·응답을 통째로 로깅하도록 설정돼 있습니다. 헤더와 본문이 그대로 로그에 남아 연동 자격증명(Authorization)과 결제·계좌 응답이 노출됩니다. 로깅 레벨을 BASIC 이하로 낮추거나 민감 헤더·본문을 마스킹해야 합니다.
+    paths:
+      include: ["*.java"]
+      exclude: ["*Test.java"]
+    patterns:
+      - pattern-regex: '(?im)^(?![ \t]*(?://|\*|/\*)).*(?:\bLogger\.Level\.(?:FULL|HEADERS)\b|\bHttpLoggingInterceptor\.Level\.(?:BODY|HEADERS)\b|\bsetLevel\s*\(\s*(?:HttpLoggingInterceptor\.)?(?:Level\.)?(?:FULL|BODY)\s*\)|org\.apache\.http\.wire)'
+      # org.apache.http.wire 로거를 *끄는* 설정은 오히려 수정된 코드다.
+      # pattern-not-regex 는 검출 범위를 포함할 때만 억제되므로 줄 전체를 잡는다.
+      - pattern-not-regex: '(?im)^.*org\.apache\.http\.wire.*\b(?:OFF|ERROR|WARN|NONE|BASIC)\b.*$'

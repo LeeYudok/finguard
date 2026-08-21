@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  finguard.config.debug-logging (#32) 정탐 픽스처 — logback 문법.
+
+  XML 에는 줄 주석이 없어 EXPECT 마커(`#|// EXPECT: <룰ID>` 로 줄이 끝나야 한다)를
+  한 줄짜리 <!-- ... --> 안에 넣을 수 없다. 주석을 다음 줄에서 닫고 대상 요소를 이어 쓴다.
+  마커 없는 줄은 오탐 방지 대조군이다.
+-->
+<configuration>
+  <!-- # EXPECT: finguard.config.debug-logging
+  --><logger name="com.example.outer.api.tossPayments" level="DEBUG"/>
+
+  <!-- 대조군 — INFO 는 대상이 아니다 -->
+  <logger name="com.example.outer.api.kftc" level="INFO"/>
+
+  <!-- 대조군 — wire 로거를 끄는 설정은 수정된 코드다 -->
+  <logger name="org.apache.http.wire" level="OFF"/>
+
+  <root level="info">
+    <appender-ref ref="STDOUT"/>
+  </root>
+</configuration>
