@@ -1545,3 +1545,30 @@
       variables:
         ARTIFACT_API_KEY: $ARTIFACT_API_KEY   # 평문 값 대신 CI 변수 참조
     ```
+
+# ── 개발용 인증 우회 엔드포인트 — Java (#37) ─────────────────────────────────
+# basis·kisa_item 은 지어내지 않는다. kisa_item 은 docs/평가기준_웹모바일HTS_66항목.md:46
+# 의 항목 37 표기를 그대로 쓴다.
+
+- rule_id: finguard.java.dev-auth-endpoint
+  code: FIN-DBG-002
+  cwe: CWE-306
+  title: 자격증명 검증 없는 개발용 토큰 발급 엔드포인트(Java)
+  severity: WARNING
+  basis: 개발보안가이드 「보안기능 - 적절한 인증 없이 중요기능 허용」
+  kisa_item: "전자금융기반시설 평가기준(2026) 웹·모바일·HTS 37 (불충분한 이용자 인증)"
+  explain: 개발·로컬 전용으로 보이는 경로에서 자격증명 검증 없이 정식 access/refresh 토큰을 발급하고 있습니다. 프로파일 조건만으로는 외부망에 노출된 검증계/개발계를 막지 못합니다. 운영 빌드에서 엔드포인트를 제거하거나(빌드 프로파일 분리), 실제 자격증명 검증을 추가하거나, 네트워크 계층에서 접근을 차단해야 합니다.
+  fix_example: |
+    ```java
+    // 개발 전용 컨트롤러는 프로파일로 격리해 운영 컨텍스트에 등록되지 않게 하고,
+    // 노출되는 경로에는 실제 자격증명 검증을 둔다.
+    @Profile({"local", "dev"})
+    @RestController
+    class LocalLoginController {
+        @PostMapping("/dev/login")
+        public TokenResponse login(@RequestBody LoginRequest request) {
+            authService.verifyCredential(request.getEmail(), request.getRawPassword());
+            return jwtTokenProvider.generateAccessToken(request.getEmail());
+        }
+    }
+    ```
