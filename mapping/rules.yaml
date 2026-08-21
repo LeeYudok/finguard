@@ -1874,3 +1874,62 @@
     # 부득이하게 로컬 기본값이 필요하면 반복 패턴이 아닌 난수를 쓴다.
     #   openssl rand -base64 32
     ```
+
+- rule_id: finguard.config.firebase-api-key
+  code: FIN-KEY-018
+  cwe: CWE-798
+  title: 파이어베이스 설정 파일의 구글 API 키
+  severity: WARNING
+  basis: 개발보안가이드 「보안기능 - 하드코드된 중요정보」
+  kisa_item: "전자금융기반시설 평가기준(2026) 웹·모바일·HTS 43 (앱 소스코드 내 운영정보 노출 방지)"
+  explain: google-services.json 에 구글 API 키(AIza…)가 커밋돼 있습니다. 파이어베이스 API 키는 클라이언트 배포물에 포함되는 프로젝트 식별자라 그 자체로 비밀은 아니지만, 콘솔에서 키 제한(Application/API restrictions)과 보안 규칙이 걸려 있지 않으면 제3자가 그대로 호출해 데이터 조회·과금 유발에 악용할 수 있습니다. 키 제한 설정을 확인하고, 제한이 없다면 즉시 제한을 걸거나 키를 회전해야 합니다.
+  fix_example: |
+    ```
+    # 1) Google Cloud Console > API 및 서비스 > 사용자 인증 정보에서
+    #    해당 키에 애플리케이션 제한(Android 앱 패키지명 + SHA-1 인증서 지문)과
+    #    API 제한(사용하는 파이어베이스 API 만)을 설정한다.
+    # 2) Firebase 보안 규칙(Firestore/Storage/Realtime DB)이 인증 없는
+    #    읽기·쓰기를 허용하지 않는지 함께 점검한다.
+    # 3) 제한을 걸 수 없는 상황이면 콘솔에서 키를 재발급(회전)하고
+    #    google-services.json 을 교체한 뒤 이전 키를 폐기한다.
+    ```
+
+- rule_id: finguard.config.private-key-file
+  code: FIN-KEY-019
+  cwe: CWE-798
+  title: 커밋된 개인키 자료(PEM)
+  severity: ERROR
+  basis: 개발보안가이드 「보안기능 - 하드코드된 중요정보」
+  kisa_item: "전자금융기반시설 평가기준(2026) 웹·모바일·HTS 43 (앱 소스코드 내 운영정보 노출 방지)"
+  explain: 개인키(PEM)가 저장소에 커밋돼 있습니다. 커밋된 키는 파일을 지워도 git 이력에 영구히 남아 저장소 접근 권한을 가진 모든 사람과 클론 사본에 노출됩니다. 저장소에서 제거하는 것만으로는 통제가 되지 않으므로 반드시 재발급(회전)이 함께 필요합니다.
+  fix_example: |
+    ```bash
+    # 1) 키를 즉시 재발급하고 기존 키를 폐기(revoke)한다 — 이력에 남은 값은 이미 노출된 값이다.
+    # 2) 저장소에서 파일을 제거하고 .gitignore 에 등록한다.
+    git rm --cached path/to/private.key
+    printf '*.key\n*.pem\n' >> .gitignore
+
+    # 3) 배포 시점에 주입한다 (CI 변수 · 시크릿 저장소 · KMS).
+    #    예: GitLab CI 의 File 타입 변수로 내려받아 런타임에만 존재시킨다.
+    ```
+
+- rule_id: finguard.config.gradle-committed-keystore
+  code: FIN-KEY-020
+  cwe: CWE-798
+  title: 저장소 내부 키스토어를 가리키는 안드로이드 서명 설정
+  severity: ERROR
+  basis: 개발보안가이드 「보안기능 - 하드코드된 중요정보」
+  kisa_item: "전자금융기반시설 평가기준(2026) 웹·모바일·HTS 43 (앱 소스코드 내 운영정보 노출 방지)"
+  explain: signingConfigs 의 storeFile 이 저장소 안의 키스토어 파일을 리터럴 상대경로로 가리킵니다. 그 키스토어는 사실상 소스와 함께 커밋돼 있으며, 서명 키가 유출되면 공격자가 동일한 서명으로 위변조 앱을 배포해 정식 앱을 덮어쓸 수 있습니다. 키스토어와 서명 비밀번호를 저장소에서 제거하고 서명 키를 재발급한 뒤 CI 시크릿으로 주입해야 합니다.
+  fix_example: |
+    ```groovy
+    // 키스토어 경로·비밀번호를 모두 외부에서 주입한다.
+    signingConfigs {
+        release {
+            storeFile file(System.getenv("ANDROID_KEYSTORE_PATH"))
+            storePassword System.getenv("ANDROID_KEYSTORE_PASSWORD")
+            keyAlias System.getenv("ANDROID_KEY_ALIAS")
+            keyPassword System.getenv("ANDROID_KEY_PASSWORD")
+        }
+    }
+    ```

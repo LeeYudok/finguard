@@ -409,3 +409,102 @@ rules:
       # services:/image: 로 띄우는 일회성 로컬 자격증명이다
       - pattern-not-regex: '(?im)^\s*["'']?(POSTGRES|POSTGRESQL|MYSQL|MARIADB|MONGO|MONGODB|REDIS|RABBITMQ|ELASTIC|MSSQL|SA)_[\w]*(PASSWORD|PASS)["'']?\s*[:=].*$'
       - pattern-not-regex: '(?im)^\s*["'']?(MYSQL_ROOT_PASSWORD|MONGO_INITDB_ROOT_PASSWORD|SA_PASSWORD)["'']?\s*[:=].*$'
+
+  # ── 파이어베이스 설정 파일의 구글 API 키 (#73) ──────────────────────────────
+  #
+  # finguard.config.plaintext-secret 은 값 자체가 구글 API 키인 경우를 잡는
+  # `\bAIza[0-9A-Za-z_-]{35}\b` 분기를 이미 갖고 있으나, 그 룰의 paths.include 가
+  # `config*.json`·`appsettings*.json` 뿐이라 **파이어베이스 표준 파일명이 스코프에
+  # 들어오지 않았다**. 안드로이드 앱의 `app/google-services.json` 은 정의상 항상
+  # `AIzaSy…` 키를 담는데 리포트가 0건이었다(실제 은행 앱 실측).
+  #
+  # google-services.json 을 plaintext-secret 의 include 에 그냥 넣지 않는 이유:
+  # 그 파일에는 `client_id`·`mobilesdk_app_id`·`project_number` 처럼 **정상적으로
+  # 공개되는 식별자**가 함께 들어 있어, 범용 어휘 정규식의 사정거리에 파일 전체를
+  # 올리면 오탐 표면만 넓어진다. 값 형식이 확정적인 `AIza` 프리픽스만 보는 전용
+  # 룰로 분리해 검출 범위를 한 줄로 좁힌다.
+  #
+  # severity 를 WARNING 으로 두는 근거: 파이어베이스 API 키는 구글 문서상 "비밀"이
+  # 아니라 프로젝트 식별자이고, 실제 위험도는 콘솔의 키 제한(Application/API
+  # restrictions)과 보안 규칙 설정에 달려 있다. 스캐너는 그 설정을 볼 수 없으므로
+  # ERROR 로 단정하지 않는다. 다만 "커밋된 클라우드 API 키"는 금융권 반입 심사의
+  # 지적 대상이라 무검출로 두지도 않는다 — 제한 설정 확인을 리뷰어에게 요구한다.
+  #
+  # iOS 의 GoogleService-Info.plist 는 여기 넣지 않는다. 위 finguard.config.plist-secret
+  # (ERROR)이 `<key>API_KEY</key><string>…</string>` 형태로 **이미 검출한다**
+  # (회귀 픽스처 testdata/rule-fixtures/firebase/ios/GoogleService-Info.plist 가 고정).
+  # 여기에 다시 넣으면 같은 줄에 ERROR·WARNING 코멘트가 중복으로 달린다.
+  - id: finguard.config.firebase-api-key
+    languages: [regex]
+    severity: WARNING
+    message: 파이어베이스 설정 파일에 구글 API 키(AIza…)가 커밋돼 있습니다. 파이어베이스 API 키는 그 자체로 비밀은 아니지만, 콘솔에서 키 제한(Application/API restrictions)과 보안 규칙이 걸려 있지 않으면 임의 호출·과금에 악용됩니다. 키 제한 설정을 확인하고, 제한이 없다면 즉시 제한하거나 키를 회전해야 합니다.
+    paths:
+      include:
+        - "google-services.json"
+      exclude:
+        - "**/node_modules/**"
+        - "**/vendor/**"
+        - "Pods/**"
+    pattern-regex: '\bAIza[0-9A-Za-z_-]{35}\b'
+
+  # ── 커밋된 개인키 자료 (PEM 텍스트) (#73) ───────────────────────────────────
+  #
+  # PEM 헤더는 값 형식이 확정적이라 어휘 추측이 필요 없다. 파일 확장자로 스코프를
+  # 좁히지 않는 이유는 실제 유출 형태가 확장자를 따르지 않기 때문이다 —
+  # 안드로이드 레포의 `key/` 디렉터리, 확장자 없는 `id_rsa`, 소스에 붙여넣은
+  # 개인키 문자열이 모두 같은 헤더를 갖는다.
+  #
+  # 문서(*.md 등)와 예시 파일은 제외한다. 거기서 이 헤더는 대개 서식 설명이며,
+  # 실키를 문서에 붙여넣은 경우까지 잡으려다 가이드 문서가 상시 검출된다.
+  #
+  # ⚠️ 알려진 한계 — 바이너리 키스토어는 잡지 못한다.
+  #   `*.jks`·`*.keystore`·`*.p12`·`*.pfx`·`*.der` 및 확장자 없는 JKS 파일은
+  #   semgrep 1.169.0 이 **바이너리로 판정해 타겟에서 제외**한다. `--exclude-binary-files`
+  #   기본값을 `--no-exclude-binary-files` 로 뒤집어도, 해당 파일을 인자로 직접
+  #   지목해도 검출 0건이다(실측). 파일명만으로 발화하는 룰을 만들어도 무음이므로
+  #   만들지 않았다. 그 구간은 semgrep 이 아니라 finguard 쪽 파일 목록 검사로
+  #   다뤄야 한다.
+  - id: finguard.config.private-key-file
+    languages: [regex]
+    severity: ERROR
+    message: 개인키 자료(PEM)가 저장소에 커밋돼 있습니다. 커밋된 키는 이력에 영구히 남아 저장소 접근 권한을 가진 모든 사람에게 노출됩니다. 저장소에서 제거하고 즉시 재발급(회전)한 뒤, 배포 시점에 시크릿 저장소·CI 변수로 주입해야 합니다.
+    paths:
+      exclude:
+        - "**/node_modules/**"
+        - "**/vendor/**"
+        - "Pods/**"
+        # 문서·예시에서 PEM 헤더는 서식 설명이다
+        - "*.md"
+        - "*.markdown"
+        - "*.rst"
+        - "*.txt"
+        - "*.example"
+        - "*.sample"
+        - "*.template"
+        - "*.dist"
+    patterns:
+      - pattern-regex: '-----BEGIN (?:RSA |DSA |EC |OPENSSH |PGP |ENCRYPTED )?PRIVATE KEY-----'
+      # 헤더 다음 줄이 자리표시자면 실키가 아니라 서식 예시다
+      - pattern-not-regex: '(?i)-----BEGIN [A-Z ]*PRIVATE KEY-----\s*(\.{3,}|x{3,}|\*{3,}|<[^>\n]+>|your[_-]|redacted|placeholder|dummy)'
+
+  # ── 레포 내부 키스토어를 가리키는 안드로이드 서명 설정 (#73) ─────────────────
+  #
+  # 위 룰이 닿지 못하는 바이너리 키스토어의 **텍스트 흔적**을 잡는다.
+  # `signingConfigs { storeFile file("../key/DebugKey") }` 처럼 리터럴 상대경로로
+  # 키스토어를 가리키면 그 파일은 사실상 저장소에 함께 커밋돼 있다.
+  #
+  # 올바른 형태(`file(System.getenv("KEYSTORE_PATH"))`·`file(props["storeFile"])`)는
+  # 여는 괄호 뒤가 따옴표가 아니므로 정규식에 걸리지 않는다. 절대경로(`/`·`~`)는
+  # 빌드 머신 로컬 경로라 커밋 증거가 아니므로 제외한다.
+  - id: finguard.config.gradle-committed-keystore
+    languages: [regex]
+    severity: ERROR
+    message: 안드로이드 서명 설정(signingConfigs)이 저장소 안의 키스토어 파일을 리터럴 상대경로로 가리킵니다. 서명 키스토어가 저장소에 함께 커밋돼 있을 가능성이 높습니다 — 앱 위변조·재서명 배포로 직결되므로 키스토어와 서명 비밀번호를 저장소에서 제거하고, 서명 키를 재발급한 뒤 CI 시크릿·환경변수로 주입해야 합니다.
+    paths:
+      include:
+        - "*.gradle"
+        - "*.gradle.kts"
+      exclude:
+        - "**/node_modules/**"
+        - "**/vendor/**"
+    pattern-regex: 'storeFile\s*=?\s*(?:rootProject\.)?file\s*\(\s*["''](?![/~])[^"''\n]+["'']\s*\)'

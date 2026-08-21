@@ -1,0 +1,36 @@
+{
+  "_fixture_note": "JSON 은 주석을 허용하지 않는다. finguard 룰은 languages: [regex] 라 파일을 JSON 으로 파싱하지 않으므로, 기대값 마커만 JSONC(// 주석) 형태로 삽입한 합성 픽스처다 (#73).",
+  "project_info": {
+    "project_number": "123456789012",
+    "project_id": "finguard-fixture",
+    "storage_bucket": "finguard-fixture.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:123456789012:android:abcdef0123456789abcdef",
+        "android_client_info": {
+          "package_name": "com.example.fixture"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "123456789012-abcdefghijklmnopqrstuvwxyz012345.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          // EXPECT: finguard.config.firebase-api-key
+          "current_key": "AIzaSyA1b2C3d4E5f6G7h8I9j0K1l2M3n4O5p6Q"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
