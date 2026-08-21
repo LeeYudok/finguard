@@ -1815,3 +1815,29 @@
     toss:
       secret-key: ${TOSS_SECRET_KEY}
     ```
+
+- rule_id: finguard.ts.namespace-analysis-gap
+  code: FIN-COV-001
+  cwe: CWE 해당 없음
+  title: AST 분석 미적용 구간 (export namespace, TS)
+  severity: INFO
+  basis: finguard 도구 한계 고지 — semgrep 1.169.0 TypeScript 파서 (#66)
+  kisa_item: ""
+  explain: |
+    semgrep 1.169.0 의 TypeScript 파서는 `export namespace X { ... }` 블록 본문을 AST 패턴으로
+    매칭하지 못합니다(같은 코드가 top-level 이거나 `export` 없는 `namespace` 면 정상 매칭됩니다).
+    이 블록 안에서는 AST 기반 룰 — 명령 실행(FIN-CMDI), SSRF(FIN-SSRF), 경로 조작(FIN-PATH),
+    XSS(FIN-XSS), zip-slip, SQL 삽입의 조립 탐지 갈래 — 이 발화하지 않습니다.
+    블록 안에 해당 룰의 위험 API 호출이 실제로 존재하여 고지합니다.
+    자동 점검 결과가 "이상 없음"이더라도 이 구간은 점검되지 않은 것이므로 수동 검토가 필요합니다.
+  fix_example: |
+    코드 결함이 아니라 도구 커버리지 고지이므로 수정 대상이 아닙니다. 아래 중 하나로 대응합니다.
+
+    1. 이 블록 안의 외부 입력 → 위험 API 경로를 수동 검토한다.
+    2. 점검 커버리지가 중요한 모듈이라면 `export namespace` 대신 모듈 export 로 구조를 바꾼다.
+
+    ```ts
+    // export namespace Provider { export async function call(url: string) { ... } }
+    // ↓ 동일 기능, AST 점검 대상이 된다
+    export async function call(url: string) { ... }
+    ```
