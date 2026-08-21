@@ -21,6 +21,12 @@ rules:
       - pattern-not-regex: '(?im)^[ \t]*(?:export[ \t]+)?(-[ \t]+)?["'']?[\w.-]+["'']?[ \t]*[:=][ \t]*["''`]?(\*{3,}|x{3,}|•{3,}|\.{4,}|#{3,}|_{4,}|redacted|change[_-]?me|placeholder|dummy|your[_-][\w-]*|todo|fixme)["''`]?[ \t]*[,;)]*[ \t]*(?:#.*|//.*)?$'
       # 국내 샘플 코드의 표준 관용구인 한국어 안내문은 시크릿이 아니라 입력 지시문이다 (#23).
       - pattern-not-regex: '(?im)^[^\n]*[:=][ \t]*["''`]?[^"''`\n]*(입력[ \t]*(?:하세요|해[ \t]*주세요|해주세요|바랍니다|하십시오)|여기에?[ \t]*입력|발급[ \t]*받은|본인의|자신의|예시|샘플)[^\n]*$'
+      # "식별자 == 값" 인 대문자 라벨 상수는 시크릿이 아니라 맵 키·화면 코드다 (#72).
+      #   const val LOGINPWD = "LOGINPWD"                 → 배제
+      #   const val MAIN_CODE_ENCKEYPAD = "ENCKEYPAD"     → 배제(마지막 세그먼트 == 값)
+      # 조건을 "값이 대문자면 배제" 로 넓히면 API_KEY = "AKIAIOSFODNN7EXAMPLE" 같은
+      # 실키까지 죽는다. 값이 식별자(또는 그 마지막 `_` 세그먼트)와 **정확히 같을 때만** 배제한다.
+      - pattern-not-regex: '(?m)^[ \t]*(?:(?:private|internal|public|protected)[ \t]+)*(?:const[ \t]+)?(?:val|var)[ \t]+(?:[A-Z][A-Z0-9]*_)*([A-Z][A-Z0-9]*)[ \t]*(?::[ \t]*[\w<>?.]+)?[ \t]*=[ \t]*"\1"[ \t]*(?://.*)?$'
 
   # 2. 취약 해시 (CWE-328)
   #   - MessageDigest/Mac 직접 호출 외에, 알고리즘명을 문자열로 받는 사내 래퍼
@@ -175,7 +181,10 @@ rules:
     message: 암호화 키·salt·IV 가 소스에 하드코드되어 있습니다. APK 디컴파일 시 그대로 노출되어 암호화가 무력화됩니다.
     paths:
       include: ["*.kt"]
-    pattern-regex: '(?im)^\s*(?:private\s+|internal\s+|public\s+|protected\s+)*(?:const\s+)?(?:val|var)\s+(?i:\w*(?:crypto|aes|enc|encrypt|secret)_?key\w*|salt|iv|ivkey|seckey)\s*(?::\s*[\w<>?.]+)?\s*=\s*"[A-Za-z0-9+/=]{7,}"'
+    patterns:
+      - pattern-regex: '(?im)^\s*(?:private\s+|internal\s+|public\s+|protected\s+)*(?:const\s+)?(?:val|var)\s+(?i:\w*(?:crypto|aes|enc|encrypt|secret)_?key\w*|salt|iv|ivkey|seckey)\s*(?::\s*[\w<>?.]+)?\s*=\s*"[A-Za-z0-9+/=]{7,}"'
+      # 라벨 상수 배제 (#72) — hardcoded-secret 의 "식별자 == 값" 주석 참조.
+      - pattern-not-regex: '(?m)^[ \t]*(?:(?:private|internal|public|protected)[ \t]+)*(?:const[ \t]+)?(?:val|var)[ \t]+(?:[A-Z][A-Z0-9]*_)*([A-Z][A-Z0-9]*)[ \t]*(?::[ \t]*[\w<>?.]+)?[ \t]*=[ \t]*"\1"[ \t]*(?://.*)?$'
 
   - id: finguard.android.mutable-pendingintent
     languages: [regex]
@@ -367,3 +376,5 @@ rules:
       - pattern-not-regex: '(?i)["''`](\*{3,}|x{3,}|•{3,}|\.{4,}|#{3,}|_{4,}|redacted|<[^>]*redact[^>]*>|change[_-]?me|placeholder|dummy|your[_-][\w-]*|todo|fixme)["''`]|[:=]\s*(\*{3,}|•{3,}|#{3,})(?![\w-])'
       - pattern-not-regex: '(?im)^[ \t]*(?:export[ \t]+)?(-[ \t]+)?["'']?[\w.-]+["'']?[ \t]*[:=][ \t]*["''`]?(\*{3,}|x{3,}|•{3,}|\.{4,}|#{3,}|_{4,}|redacted|change[_-]?me|placeholder|dummy|your[_-][\w-]*|todo|fixme)["''`]?[ \t]*[,;)]*[ \t]*(?:#.*|//.*)?$'
       - pattern-not-regex: '(?im)^[^\n]*[:=][ \t]*["''`]?[^"''`\n]*(입력[ \t]*(?:하세요|해[ \t]*주세요|해주세요|바랍니다|하십시오)|여기에?[ \t]*입력|발급[ \t]*받은|본인의|자신의|예시|샘플)[^\n]*$'
+      # 라벨 상수 배제 (#72) — 운영 코드용 hardcoded-secret 과 동일 조건.
+      - pattern-not-regex: '(?m)^[ \t]*(?:(?:private|internal|public|protected)[ \t]+)*(?:const[ \t]+)?(?:val|var)[ \t]+(?:[A-Z][A-Z0-9]*_)*([A-Z][A-Z0-9]*)[ \t]*(?::[ \t]*[\w<>?.]+)?[ \t]*=[ \t]*"\1"[ \t]*(?://.*)?$'

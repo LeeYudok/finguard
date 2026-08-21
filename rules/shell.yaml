@@ -24,7 +24,14 @@ rules:
     message: curl 이 -k/--insecure 로 TLS 인증서 검증을 끄고 있습니다. 중간자 공격(MITM)에 노출됩니다.
     paths:
       include: ["*.sh", "*.bash", "*.zsh"]
-    pattern-regex: '(?m)^(?!\s*#)[^\n]*\bcurl\b[^|\n]*(?:\s-[A-Za-z]*k[A-Za-z]*\b|\s--insecure\b)'
+    # heredoc 본문(`cat <<EOF ... EOF`)은 출력되는 문자열이지 실행되는 명령이 아니다 (#72).
+    # 실제 배포 스크립트의 안내문 `검증: curl -sk https://... → 200` 이 오탐이었다.
+    # 첫 대안이 heredoc 블록 전체를 매칭한 뒤 (*SKIP)(*FAIL) 로 그 구간을 통째로 건너뛴다.
+    # PCRE 백트래킹 verb 이며 semgrep 의 regex 엔진에서 동작을 실측했다.
+    # 종료 구분자는 `<<-` 들여쓰기 형태와 `<<'EOF'` 인용 형태를 함께 받는다.
+    # heredoc 밖의 실제 요청(`curl -sk ...`·`sudo curl -kL ...`)은 그대로 검출된다.
+    pattern-regex: |-
+      (?m)<<-?[ \t]*(['"]?)([A-Za-z_][A-Za-z0-9_]*)\1[^\n]*\n(?s:.*?)\n[ \t]*\2[ \t]*(?:\n|$)(*SKIP)(*FAIL)|^(?!\s*#)[^\n]*\bcurl\b[^|\n]*(?:\s-[A-Za-z]*k[A-Za-z]*\b|\s--insecure\b)
 
   - id: finguard.shell.wget-insecure
     languages: [regex]
