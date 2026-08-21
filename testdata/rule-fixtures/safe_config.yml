@@ -1,0 +1,32 @@
+# 대조군 픽스처 — 어떤 룰에도 걸리면 안 된다 (#24).
+# 스코프 확장으로 새로 열리는 일반 YAML 에서 대표적으로 유입되는 비-시크릿 라인들이다.
+# safe_ 접두라 EXPECT 마커를 가질 수 없다.
+
+datasource:
+  url: jdbc:postgresql://db.example.com:5432/core
+  # 환경변수 치환 — 올바른 사용법
+  password: ${DB_PASSWORD}
+
+auth:
+  # 값이 플래그·스키마인 경우
+  token_required: true
+  api_key_rotation: false
+  client_secret_source: env:CLIENT_SECRET
+
+k8s:
+  env:
+    - name: DB_PASSWORD
+      valueFrom: secretKeyRef
+
+openapi:
+  components:
+    securitySchemes:
+      ApiKeyAuth:
+        type: apiKey
+        name: X-API-KEY
+
+masked:
+  # 마스킹 플레이스홀더는 시크릿이 아니라 가리는 코드다
+  password: "********"
+  api_key: "your-api-key"
+  client_secret: "CHANGE_ME"
