@@ -1,3 +1,14 @@
+# Swift / Apple 플랫폼(iOS·macOS·watchOS·tvOS) 룰셋.
+#
+# paths.exclude 정책 (#33):
+#   - 빌드 산출물(**/build/**, **/DerivedData/**, **/*.xcframework/**)은 전 룰에서 제외한다.
+#     DerivedData 는 앱 소스·plist 의 사본이라 같은 결함에 중복 코멘트만 만들고,
+#     xcframework 는 배포용 바이너리 번들이라 MR diff 에 소스로 등장하지 않는다.
+#   - Pods/Carthage 는 **plist ATS 룰에만** 제외한다. ATS 는 앱 타깃의 Info.plist 가 지배하므로
+#     팟 자신의 Info.plist 는 런타임에 효력이 없다 — 점검 범위 축소가 아니라 오탐 제거다.
+#     반대로 벤더 *Swift 코드* 의 인증서 검증 무력화는 최종 바이너리에 그대로 실려 나가므로
+#     범위에서 빼지 않는다. insecure-trust(ERROR) 에서 제외된 벤더 경로는
+#     insecure-trust-vendor(WARNING) 가 이어받아 코멘트는 남기되 게이트는 걸지 않는다.
 rules:
   - id: finguard.swift.hardcoded-secret
     languages: [regex]
@@ -5,6 +16,7 @@ rules:
     message: 소스코드에 비밀정보(비밀번호·API 키·토큰)가 하드코드되어 있습니다.
     paths:
       include: ["*.swift"]
+      exclude: ["**/build/**", "**/DerivedData/**", "**/*.xcframework/**"]
     patterns:
       - pattern-regex: '(?i)(let|var)\s+\w*(password|passwd|secret|api_?key|token|credential)\w*\s*=\s*"(?!(?-i:[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+)")(?!(?-i:[a-z]+(?:_[a-z]+)+)")[^"]{4,}"'
       # 마스킹 플레이스홀더는 시크릿이 아니다 — 오히려 가리는 코드다
@@ -16,6 +28,7 @@ rules:
     message: 평문 HTTP URL 이 사용되고 있습니다. TLS(https) 로 전환해야 합니다.
     paths:
       include: ["*.swift"]
+      exclude: ["**/build/**", "**/DerivedData/**", "**/*.xcframework/**"]
     pattern-regex: '(?im)^(?![ \t]*(?://|\*|/\*)).*"http://(?!localhost|127\.0\.0\.1|0\.0\.0\.0|schemas\.|xmlns|(?:www\.)?w3\.org|(?:[\w.]+\.)?apache\.org|[\w.]*xml\.org|java\.sun\.com|(?:www\.)?example\.(?:com|org)|(?:www\.)?unicode\.org|(?:www\.)?jflex\.de|purl\.org|iana\.org|ietf\.org|slf4j\.org|json-schema\.org)[^"]+"'
 
   # 금융 실시간 채널(시세·체결통보)은 대부분 웹소켓이고 접속키가 함께 흐른다 (#30).
@@ -27,6 +40,7 @@ rules:
     message: 평문 WebSocket(ws://) 으로 통신하고 있습니다. 실시간 시세·체결통보 채널에는 접속키와 거래내역이 흐르므로 wss:// 로 전환해야 합니다.
     paths:
       include: ["*.swift"]
+      exclude: ["**/build/**", "**/DerivedData/**", "**/*.xcframework/**"]
     pattern-regex: '(?im)^(?![ \t]*(?://|\*|/\*)).*"ws://(?!localhost|127\.0\.0\.1|0\.0\.0\.0|schemas\.|xmlns|(?:www\.)?w3\.org|(?:[\w.]+\.)?apache\.org|[\w.]*xml\.org|java\.sun\.com|(?:www\.)?example\.(?:com|org)|(?:www\.)?unicode\.org|(?:www\.)?jflex\.de|purl\.org|iana\.org|ietf\.org|slf4j\.org|json-schema\.org)[^"]+"'
 
   - id: finguard.swift.userdefaults-sensitive
@@ -35,6 +49,7 @@ rules:
     message: UserDefaults 에 중요정보를 평문 저장하고 있습니다. Keychain 을 사용해야 합니다.
     paths:
       include: ["*.swift"]
+      exclude: ["**/build/**", "**/DerivedData/**", "**/*.xcframework/**"]
     pattern-regex: '(?i)UserDefaults[^\n]*\.set\([^\n]*(password|passwd|token|secret|pin|cardno|card_no|accountno)'
 
   - id: finguard.swift.uiwebview
@@ -43,6 +58,7 @@ rules:
     message: 폐기된 UIWebView 를 사용하고 있습니다. WKWebView 로 교체해야 합니다.
     paths:
       include: ["*.swift"]
+      exclude: ["**/build/**", "**/DerivedData/**", "**/*.xcframework/**"]
     pattern-regex: '\bUIWebView\b'
 
   - id: finguard.swift.weak-hash
@@ -51,6 +67,7 @@ rules:
     message: 취약한 해시 알고리즘(MD5/SHA-1)을 사용하고 있습니다.
     paths:
       include: ["*.swift"]
+      exclude: ["**/build/**", "**/DerivedData/**", "**/*.xcframework/**"]
     pattern-regex: '\b(CC_MD5|CC_SHA1|Insecure\.MD5|Insecure\.SHA1)\b'
 
   - id: finguard.swift.print-sensitive
@@ -59,6 +76,7 @@ rules:
     message: 로그/콘솔에 중요정보가 출력될 수 있습니다.
     paths:
       include: ["*.swift"]
+      exclude: ["**/build/**", "**/DerivedData/**", "**/*.xcframework/**"]
     pattern-regex: '(?im)^(?![ \t]*(?://|\*|/\*)).*?\b(?:print|NSLog|os_log)\((?:(?:"(?:\\.|[^"\\\n])*"|[^"\n])*?(?:\b(?:password|passwd|token|secret|pin|cardno|card_no)\b|주민)|[^\n]*?\\\([^)\n]*(?:\b(?:password|passwd|token|secret|pin|cardno|card_no)\b|주민))'
 
   - id: finguard.swift.sql-interpolation
@@ -67,15 +85,55 @@ rules:
     message: SQL 문자열에 변수를 직접 보간(interpolation)하고 있습니다. 바인딩 파라미터를 사용해야 합니다.
     paths:
       include: ["*.swift"]
+      exclude: ["**/build/**", "**/DerivedData/**", "**/*.xcframework/**"]
     pattern-regex: '"(?i)(SELECT|INSERT|UPDATE|DELETE)\b[^"]*\\\('
 
+  # ATS 전역 해제 (#33).
+  # 기존 정규식은 '<true/>' 한 가지 표기만 봤다. plist 는 <true/> 와 <true></true> 가 모두
+  # 유효하고, Xcode 가 아닌 편집기·스크립트가 만든 파일에서는 후자가 흔하다 — 회피 시도가
+  # 아니라 우연으로도 미탐이 나던 자리라 표기 변형을 함께 본다.
   - id: finguard.plist.ats-arbitrary-loads
     languages: [regex]
     severity: ERROR
     message: ATS 전역 해제(NSAllowsArbitraryLoads=true)로 평문 통신이 허용됩니다.
     paths:
       include: ["*.plist"]
-    pattern-regex: 'NSAllowsArbitraryLoads</key>\s*<true\s*/>'
+      exclude:
+        - "**/build/**"
+        - "**/DerivedData/**"
+        - "**/*.xcframework/**"
+        - "Pods/**"
+        - "**/Pods/**"
+        - "Carthage/**"
+        - "**/Carthage/**"
+    pattern-regex: 'NSAllowsArbitraryLoads</key>\s*<true\s*(?:/>|>\s*</true>)'
+
+  # ATS 부분 완화 (#33).
+  # 전역 해제(NSAllowsArbitraryLoads)만 잡으면 '도메인 단위로 좁혔으니 안전' 이라며 결제·인증
+  # 도메인을 NSExceptionDomains 예외에 넣고 종결하는 실제 다수 형태를 통째로 놓친다.
+  # 예외 대상이 좁다는 것과 그 구간이 평문이라는 것은 별개 사실이다.
+  # 전역 해제(ERROR)와 달리 영향 범위가 한정되므로 WARNING 으로 분리해 게이트를 막지 않는다.
+  - id: finguard.plist.ats-partial-exception
+    languages: [regex]
+    severity: WARNING
+    message: ATS 예외 설정으로 특정 도메인·구간의 평문 HTTP 또는 취약 TLS(1.0/1.1)가 허용됩니다. 예외 도메인이 결제·인증 구간이면 전역 해제와 위험이 같습니다.
+    paths:
+      include: ["*.plist"]
+      exclude:
+        - "**/build/**"
+        - "**/DerivedData/**"
+        - "**/*.xcframework/**"
+        - "Pods/**"
+        - "**/Pods/**"
+        - "Carthage/**"
+        - "**/Carthage/**"
+    # NSAllowsLocalNetworking 은 의도적으로 넣지 않았다 — Bonjour·로컬 기기 탐색에서
+    # 정상적으로 켜는 값이라 금융 앱에서도 오탐이 대부분이고, 사설망 구간이라 위험도가 다르다.
+    pattern-either:
+      # 도메인·용도별 평문 허용
+      - pattern-regex: '(?:NSAllowsArbitraryLoadsInWebContent|NSAllowsArbitraryLoadsForMedia|NSExceptionAllowsInsecureHTTPLoads|NSThirdPartyExceptionAllowsInsecureHTTPLoads)</key>\s*<true\s*(?:/>|>\s*</true>)'
+      # 예외 도메인의 최소 TLS 버전을 폐기된 1.0/1.1 로 내리는 형태
+      - pattern-regex: '(?:NSExceptionMinimumTLSVersion|NSThirdPartyExceptionMinimumTLSVersion)</key>\s*<string>\s*TLSv1\.[01]\s*</string>'
 
   - id: finguard.swift.webview-file-access
     languages: [regex]
@@ -83,13 +141,49 @@ rules:
     message: WebView 의 파일 접근 설정이 로컬 파일 탈취에 악용될 수 있습니다.
     paths:
       include: ["*.swift"]
+      exclude: ["**/build/**", "**/DerivedData/**", "**/*.xcframework/**"]
     pattern-regex: '\b(allowFileAccessFromFileURLs|allowUniversalAccessFromFileURLs)\b'
 
+  # 인증서 검증 무력화 (#33).
+  # 표준 API(SecTrustSetExceptions/URLCredential(trust:))만 보면 국내 금융 iOS 의 사실상
+  # 표준 네트워킹 스택인 Alamofire·Starscream 의 우회 관용구가 전부 통과한다.
+  # 라이브러리 API 이름은 각각 Alamofire 4(ServerTrustPolicy.disableEvaluation),
+  # Alamofire 5(DisabledTrustEvaluator), Starscream 3(disableSSLCertValidation),
+  # Starscream 4(allowSelfSigned) 의 실제 심볼이다.
   - id: finguard.swift.insecure-trust
     languages: [regex]
     severity: ERROR
-    message: 서버 인증서를 검증 없이 신뢰하고 있습니다(SecTrustSetExceptions/URLCredential(trust:)). 중간자 공격(MITM)에 노출됩니다.
+    message: 서버 인증서를 검증 없이 신뢰하고 있습니다(SecTrustSetExceptions/URLCredential(trust:)/Alamofire·Starscream 검증 무력화). 중간자 공격(MITM)에 노출됩니다.
     paths:
       include: ["*.swift"]
-      exclude: ["Pods/**", "**/Pods/**", "Carthage/**", "**/Carthage/**", "Vendor/**/*Pods*"]
-    pattern-regex: '(?im)^(?![ \t]*(?://|\*)).*(?:SecTrustSetExceptions|URLCredential\(trust:)'
+      exclude:
+        - "**/build/**"
+        - "**/DerivedData/**"
+        - "**/*.xcframework/**"
+        - "Pods/**"
+        - "**/Pods/**"
+        - "Carthage/**"
+        - "**/Carthage/**"
+        - "Vendor/**/*Pods*"
+    pattern-regex: '(?im)^(?![ \t]*(?://|\*)).*(?:SecTrustSetExceptions|URLCredential\(trust:|DisabledTrustEvaluator\(|ServerTrustPolicy\.disableEvaluation|allHostsMustBeEvaluated\s*:\s*false|allowSelfSigned\s*:\s*true|disableSSLCertValidation\s*=\s*true)'
+
+  # 벤더 소스의 인증서 검증 무력화 (#33).
+  # 위 insecure-trust 가 제외하는 Pods/Carthage 경로를 이 룰이 이어받는다. 벤더 코드라도
+  # 검증 무력화는 최종 바이너리에서 실제로 실행되므로 점검 범위에서 빼지 않는다("개발팀이
+  # 못 고친다" 는 보안 논거가 아니라 워크플로 논거다). 다만 그 자리에서 코드로 고칠 수 없고
+  # 라이브러리 교체·버전 고정으로 해소할 항목이라 게이트를 막지 않도록 WARNING 으로 낮춘다.
+  # reviewdog -filter-mode=added 특성상 코멘트는 그 SDK blob 을 커밋·갱신하는 시점,
+  # 즉 반입 여부를 결정하는 바로 그 시점에만 달린다.
+  - id: finguard.swift.insecure-trust-vendor
+    languages: [regex]
+    severity: WARNING
+    message: 반입한 서드파티 라이브러리 소스가 서버 인증서 검증을 무력화하고 있습니다. 개발팀이 직접 수정할 수 없는 코드이므로 라이브러리 교체·버전 고정 등 의존성 감사 단계에서 처리해야 합니다.
+    paths:
+      include:
+        - "Pods/**/*.swift"
+        - "**/Pods/**/*.swift"
+        - "Carthage/**/*.swift"
+        - "**/Carthage/**/*.swift"
+        - "**/*.xcframework/**/*.swift"
+      exclude: ["**/build/**", "**/DerivedData/**"]
+    pattern-regex: '(?im)^(?![ \t]*(?://|\*)).*(?:SecTrustSetExceptions|URLCredential\(trust:|DisabledTrustEvaluator\(|ServerTrustPolicy\.disableEvaluation|allHostsMustBeEvaluated\s*:\s*false|allowSelfSigned\s*:\s*true|disableSSLCertValidation\s*=\s*true)'

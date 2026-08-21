@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- 룰 회귀 픽스처 — finguard.plist.ats-arbitrary-loads / finguard.plist.ats-partial-exception (#33)
+     semgrep 은 매치 시작 줄(<key> 가 있는 줄)을 보고하므로 마커는 그 줄 바로 위에 둔다.
+     plist 는 주석 문법이 XML 이라 마커를 <!-- --> 안에 넣는다 (Secrets-Info.plist 선례). -->
+<plist version="1.0">
+<dict>
+	<key>CFBundleIdentifier</key>
+	<string>com.example.trading</string>
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<!-- <true></true> 표기형 — 기존 정규식('<true\s*/>')이 놓치던 자리다
+		# EXPECT: finguard.plist.ats-arbitrary-loads
+		--><key>NSAllowsArbitraryLoads</key>
+		<true></true>
+		<!--
+		# EXPECT: finguard.plist.ats-partial-exception
+		--><key>NSAllowsArbitraryLoadsInWebContent</key>
+		<true/>
+		<!--
+		# EXPECT: finguard.plist.ats-partial-exception
+		--><key>NSAllowsArbitraryLoadsForMedia</key>
+		<true></true>
+		<key>NSExceptionDomains</key>
+		<dict>
+			<key>pay.example-bank.co.kr</key>
+			<dict>
+				<!-- 결제 도메인을 예외에 넣고 '좁혔으니 안전' 이라 종결하는 실제 다수 형태
+				# EXPECT: finguard.plist.ats-partial-exception
+				--><key>NSExceptionAllowsInsecureHTTPLoads</key>
+				<true/>
+				<!--
+				# EXPECT: finguard.plist.ats-partial-exception
+				--><key>NSExceptionMinimumTLSVersion</key>
+				<string>TLSv1.0</string>
+			</dict>
+			<key>cdn.example-vendor.com</key>
+			<dict>
+				<!--
+				# EXPECT: finguard.plist.ats-partial-exception
+				--><key>NSThirdPartyExceptionMinimumTLSVersion</key>
+				<string>TLSv1.1</string>
+			</dict>
+		</dict>
+	</dict>
+</dict>
+</plist>

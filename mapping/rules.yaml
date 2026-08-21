@@ -1545,3 +1545,41 @@
       variables:
         ARTIFACT_API_KEY: $ARTIFACT_API_KEY   # 평문 값 대신 CI 변수 참조
     ```
+
+# ── Apple 플랫폼 전송보안 보강 (#33) ──────────────────────────────────────
+
+- rule_id: finguard.plist.ats-partial-exception
+  code: FIN-TLS-025
+  cwe: CWE-319
+  title: ATS 부분 완화(도메인 예외·취약 TLS 허용)
+  severity: WARNING
+  basis: 개발보안가이드 「보안기능 - 중요정보 평문 전송」
+  kisa_item: "전자금융기반시설 평가기준(2026) 웹·모바일·HTS 65 (통신구간 암호화 적용)"
+  explain: ATS 예외 설정으로 특정 도메인·구간의 평문 HTTP 또는 폐기된 TLS 1.0/1.1 이 허용되어 Apple 플랫폼(iOS/macOS/watchOS/tvOS)의 전송보안이 부분적으로 무력화됩니다. 예외 범위가 좁다는 것과 그 구간이 평문이라는 것은 별개이며, 예외 도메인이 결제·인증 구간이면 전역 해제와 위험이 같습니다.
+  fix_example: |
+    ```xml
+    <key>NSExceptionDomains</key>
+    <dict>
+      <key>api.example-bank.co.kr</key>
+      <dict>
+        <key>NSExceptionAllowsInsecureHTTPLoads</key>
+        <false/>
+        <key>NSExceptionMinimumTLSVersion</key>
+        <string>TLSv1.2</string>
+      </dict>
+    </dict>
+    ```
+
+- rule_id: finguard.swift.insecure-trust-vendor
+  code: FIN-TLS-026
+  cwe: CWE-295
+  title: 서버 인증서 검증 우회(서드파티 라이브러리 소스)
+  severity: WARNING
+  basis: 개발보안가이드 「보안기능 - 부적절한 인증서 유효성 검증」
+  kisa_item: "전자금융기반시설 평가기준(2026) 웹·모바일·HTS 47 (서버 인증서 무결성 검증)"
+  explain: 저장소에 반입한 서드파티 라이브러리(Pods/Carthage/xcframework) 소스가 서버 인증서 검증을 무력화하고 있습니다. 벤더 코드라도 최종 바이너리에서 그대로 실행되므로 점검 범위에서 제외하지 않습니다. 다만 개발팀이 해당 코드를 직접 수정할 수 없으므로 라이브러리 교체·버전 고정 등 의존성 감사 단계에서 해소해야 하며, 그 사이 머지를 막지 않도록 경고로 분류합니다.
+  fix_example: |
+    ```text
+    - 검증을 무력화하지 않는 상위 버전으로 교체하거나 대체 라이브러리를 선정
+    - 불가피하면 반입 심사 기록에 수용 위험(accepted risk)으로 등록하고 사용 범위를 제한
+    ```
