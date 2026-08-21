@@ -1,0 +1,24 @@
+# 룰 회귀 픽스처 — finguard.ci.plaintext-secret (#24)
+# CI 설정은 스코프에서 빼지 않고 WARNING 별도 룰로 분리한다. 값은 합성 더미다.
+
+stages: [build, deploy]
+
+services:
+  - name: postgres:16
+    alias: db
+
+variables:
+  # 컨테이너 부트스트랩 변수는 일회성 로컬 값이라 억제된다
+  POSTGRES_PASSWORD: ci_local_only
+  MYSQL_ROOT_PASSWORD: ci_local_only
+  # 시크릿 저장소 참조는 올바른 사용법이다
+  DEPLOY_TOKEN: $CI_DEPLOY_TOKEN
+
+deploy:
+  stage: deploy
+  script:
+    # EXPECT: finguard.ci.plaintext-secret
+    - REGISTRY_PASSWORD=Gl-Deploy-2026-Zq77 ./scripts/publish.sh
+  variables:
+    # EXPECT: finguard.ci.plaintext-secret
+    ARTIFACT_API_KEY: ci_11223344556677889900
