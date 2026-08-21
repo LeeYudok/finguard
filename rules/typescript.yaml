@@ -37,6 +37,20 @@ rules:
     # hancom/openxmlformats 등)인 경우. HWPX·OOXML·EPUB 은 XML 기반이라 네임스페이스가 도배된다.
     pattern-regex: '(?im)^(?![ \t]*(?://|\*|/\*))(?!.*\bxmlns\b).*["'']http://(?!localhost|127\.0\.0\.1|0\.0\.0\.0|schemas\.|xmlns|(?:www\.)?w3\.org|(?:[\w.]+\.)?apache\.org|[\w.]*xml\.org|java\.sun\.com|(?:www\.)?example\.(?:com|org)|(?:www\.)?unicode\.org|(?:www\.)?jflex\.de|purl\.org|iana\.org|ietf\.org|slf4j\.org|json-schema\.org|(?:www\.)?hancom\.(?:co\.kr|com)|(?:www\.)?idpf\.org|openxmlformats\.org|(?:www\.)?oasis-open\.org|dublincore\.org|docbook\.org)[^"'']+["'']'
 
+  # 금융 실시간 채널(시세·체결통보)은 대부분 웹소켓이고 접속키가 함께 흐른다 (#30).
+  # http-url 과 스킴만 다르고 예외 도메인 목록은 동일 — ws://localhost 개발 서버는 계속 제외된다.
+  # 접속 자격증명 동반 가능성이 높아 severity 는 ERROR 로 분리했다(http-url 은 WARNING 유지).
+  - id: finguard.ts.cleartext-websocket
+    languages: [regex]
+    severity: ERROR
+    message: 평문 WebSocket(ws://) 으로 통신하고 있습니다. 실시간 시세·체결통보 채널에는 접속키와 거래내역이 흐르므로 wss:// 로 전환해야 합니다.
+    paths:
+      include: ["*.ts", "*.tsx", "*.js", "*.jsx"]
+    # 평문 http 리터럴 검출. 단 XML 네임스페이스 URI(통신 주소가 아니라 스키마 식별자)는
+    # 제외한다 — 같은 줄에 xmlns 가 있거나, 잘 알려진 문서포맷 스키마 호스트(w3/apache/idpf/
+    # hancom/openxmlformats 등)인 경우. HWPX·OOXML·EPUB 은 XML 기반이라 네임스페이스가 도배된다.
+    pattern-regex: '(?im)^(?![ \t]*(?://|\*|/\*))(?!.*\bxmlns\b).*["'']ws://(?!localhost|127\.0\.0\.1|0\.0\.0\.0|schemas\.|xmlns|(?:www\.)?w3\.org|(?:[\w.]+\.)?apache\.org|[\w.]*xml\.org|java\.sun\.com|(?:www\.)?example\.(?:com|org)|(?:www\.)?unicode\.org|(?:www\.)?jflex\.de|purl\.org|iana\.org|ietf\.org|slf4j\.org|json-schema\.org|(?:www\.)?hancom\.(?:co\.kr|com)|(?:www\.)?idpf\.org|openxmlformats\.org|(?:www\.)?oasis-open\.org|dublincore\.org|docbook\.org)[^"'']+["'']'
+
   - id: finguard.ts.os-command-injection
     languages: [ts, js]
     severity: ERROR

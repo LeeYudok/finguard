@@ -74,6 +74,12 @@ def fetch_httpx_verified(url):
     return httpx.Client(verify=True).get(url)
 
 
+# 9) finguard.python.cleartext-websocket — wss 와 로컬 개발 서버는 대상이 아니다 (#30).
+REALTIME_FEED_URL = "wss://ops.example-broker.co.kr:21000"
+LOCAL_FEED_URL = "ws://localhost:8765"
+LOOPBACK_FEED_URL = "ws://127.0.0.1:8765"
+
+
 # 8) finguard.python.yaml-unsafe-load — safe_load 또는 SafeLoader 는 대상이 아니다.
 def load_config_safe(stream):
     return yaml.safe_load(stream)

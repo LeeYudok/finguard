@@ -1173,3 +1173,121 @@
     ```go
     rows, err := db.Query("SELECT * FROM users WHERE name = ?", name)
     ```
+- rule_id: finguard.swift.cleartext-websocket
+  code: FIN-TLS-017
+  cwe: CWE-319
+  title: 중요정보 평문 전송(WebSocket)
+  severity: ERROR
+  basis: 개발보안가이드 「보안기능 - 중요정보 평문 전송」
+  kisa_item: "전자금융기반시설 평가기준(2026) 웹·모바일·HTS 65 (통신구간 암호화 적용)"
+  explain: 평문 WebSocket(ws://) 으로 통신하고 있습니다. 실시간 시세·체결통보 채널에는 접속 자격증명과 거래내역이 흐르므로, 스니핑과 중간자 변조에 그대로 노출됩니다.
+  fix_example: |
+    ```
+    # 잘못된 예 (Swift)
+    url = "ws://ops.example.com:21000"
+
+    # 올바른 예 — TLS 적용
+    url = "wss://ops.example.com:21000"
+    ```
+
+- rule_id: finguard.go.cleartext-websocket
+  code: FIN-TLS-018
+  cwe: CWE-319
+  title: 중요정보 평문 전송(WebSocket)
+  severity: ERROR
+  basis: 개발보안가이드 「보안기능 - 중요정보 평문 전송」
+  kisa_item: "전자금융기반시설 평가기준(2026) 웹·모바일·HTS 65 (통신구간 암호화 적용)"
+  explain: 평문 WebSocket(ws://) 으로 통신하고 있습니다. 실시간 시세·체결통보 채널에는 접속 자격증명과 거래내역이 흐르므로, 스니핑과 중간자 변조에 그대로 노출됩니다.
+  fix_example: |
+    ```
+    # 잘못된 예 (Go)
+    url = "ws://ops.example.com:21000"
+
+    # 올바른 예 — TLS 적용
+    url = "wss://ops.example.com:21000"
+    ```
+
+- rule_id: finguard.ts.cleartext-websocket
+  code: FIN-TLS-019
+  cwe: CWE-319
+  title: 중요정보 평문 전송(WebSocket)
+  severity: ERROR
+  basis: 개발보안가이드 「보안기능 - 중요정보 평문 전송」
+  kisa_item: "전자금융기반시설 평가기준(2026) 웹·모바일·HTS 65 (통신구간 암호화 적용)"
+  explain: 평문 WebSocket(ws://) 으로 통신하고 있습니다. 실시간 시세·체결통보 채널에는 접속 자격증명과 거래내역이 흐르므로, 스니핑과 중간자 변조에 그대로 노출됩니다.
+  fix_example: |
+    ```
+    # 잘못된 예 (TS/JS)
+    url = "ws://ops.example.com:21000"
+
+    # 올바른 예 — TLS 적용
+    url = "wss://ops.example.com:21000"
+    ```
+
+- rule_id: finguard.java.cleartext-websocket
+  code: FIN-TLS-020
+  cwe: CWE-319
+  title: 중요정보 평문 전송(WebSocket)
+  severity: ERROR
+  basis: 개발보안가이드 「보안기능 - 중요정보 평문 전송」
+  kisa_item: "전자금융기반시설 평가기준(2026) 웹·모바일·HTS 65 (통신구간 암호화 적용)"
+  explain: 평문 WebSocket(ws://) 으로 통신하고 있습니다. 실시간 시세·체결통보 채널에는 접속 자격증명과 거래내역이 흐르므로, 스니핑과 중간자 변조에 그대로 노출됩니다.
+  fix_example: |
+    ```
+    # 잘못된 예 (Java)
+    url = "ws://ops.example.com:21000"
+
+    # 올바른 예 — TLS 적용
+    url = "wss://ops.example.com:21000"
+    ```
+
+- rule_id: finguard.kotlin.cleartext-websocket
+  code: FIN-TLS-021
+  cwe: CWE-319
+  title: 중요정보 평문 전송(WebSocket)
+  severity: ERROR
+  basis: 개발보안가이드 「보안기능 - 중요정보 평문 전송」
+  kisa_item: "전자금융기반시설 평가기준(2026) 웹·모바일·HTS 65 (통신구간 암호화 적용)"
+  explain: 평문 WebSocket(ws://) 으로 통신하고 있습니다. 실시간 시세·체결통보 채널에는 접속 자격증명과 거래내역이 흐르므로, 스니핑과 중간자 변조에 그대로 노출됩니다.
+  fix_example: |
+    ```
+    # 잘못된 예 (Kotlin)
+    url = "ws://ops.example.com:21000"
+
+    # 올바른 예 — TLS 적용
+    url = "wss://ops.example.com:21000"
+    ```
+
+- rule_id: finguard.python.cleartext-websocket
+  code: FIN-TLS-022
+  cwe: CWE-319
+  title: 중요정보 평문 전송(WebSocket)
+  severity: ERROR
+  basis: 개발보안가이드 「보안기능 - 중요정보 평문 전송」
+  kisa_item: "전자금융기반시설 평가기준(2026) 웹·모바일·HTS 65 (통신구간 암호화 적용)"
+  explain: 평문 WebSocket(ws://) 으로 통신하고 있습니다. 실시간 시세·체결통보 채널에는 접속 자격증명과 거래내역이 흐르므로, 스니핑과 중간자 변조에 그대로 노출됩니다.
+  fix_example: |
+    ```
+    # 잘못된 예 (Python)
+    url = "ws://ops.example.com:21000"
+
+    # 올바른 예 — TLS 적용
+    url = "wss://ops.example.com:21000"
+    ```
+
+- rule_id: finguard.shell.cleartext-websocket
+  code: FIN-TLS-023
+  cwe: CWE-319
+  title: 중요정보 평문 전송(WebSocket)
+  severity: ERROR
+  basis: 개발보안가이드 「보안기능 - 중요정보 평문 전송」
+  kisa_item: "전자금융기반시설 평가기준(2026) 웹·모바일·HTS 65 (통신구간 암호화 적용)"
+  explain: 평문 WebSocket(ws://) 으로 통신하고 있습니다. 실시간 시세·체결통보 채널에는 접속 자격증명과 거래내역이 흐르므로, 스니핑과 중간자 변조에 그대로 노출됩니다.
+  fix_example: |
+    ```
+    # 잘못된 예 (Shell)
+    url = "ws://ops.example.com:21000"
+
+    # 올바른 예 — TLS 적용
+    url = "wss://ops.example.com:21000"
+    ```
