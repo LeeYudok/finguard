@@ -106,14 +106,44 @@ rules:
       # 마스킹 플레이스홀더는 시크릿이 아니다 — 오히려 가리는 코드다
       - pattern-not-regex: '(?i)["''`](\*{3,}|x{3,}|•{3,}|\.{4,}|#{3,}|_{4,}|redacted|<[^>]*redact[^>]*>|change[_-]?me|placeholder|dummy|your[_-][\w-]*|todo|fixme)["''`]|[:=]\s*(\*{3,}|•{3,}|#{3,})(?![\w-])'
 
+  # 취약 해시 (CWE-328).
+  #   - MessageDigest/Mac 직접 호출 외에, 알고리즘명을 문자열로 받는 사내 래퍼
+  #     (CryptUtil.encrypt("MD5", ...) 류)와 DigestUtils.md5* 계열까지 본다 (#34).
+  #     금융권 공용 CryptUtil/SignUtil 은 알고리즘명을 파라미터로 넘기는 구조가 표준에
+  #     가까워, 정의부에는 리터럴이 없고(getInstance(algorithm)) 호출부에는 MessageDigest
+  #     문자열이 없어 종전 패턴은 양쪽 다 보지 못했다.
+  #   - 상수 선언형(static final String HASH_ALGORITHM = "MD5")도 본다. 알고리즘명을 상수로
+  #     빼고 래퍼에 넘기는 형태가 호출부 정규식으로는 잡히지 않는 최빈 미탐이었다.
+  #   - 함수명 휴리스틱을 필수로 둬서 임의 함수의 첫 인자 "MD5" 오탐을 막는다.
+  #   - Kotlin 대응은 finguard.kotlin.weak-hash(#28)가 이미 담당한다.
   - id: finguard.java.weak-hash
     languages: [regex]
     severity: WARNING
-    message: 취약한 해시 알고리즘(MD5/SHA-1)을 사용하고 있습니다.
+    message: 취약한 해시 알고리즘(MD5/SHA-1)을 사용하고 있습니다. SHA-256 이상(서명은 HMAC-SHA256)을 사용해야 합니다. 알고리즘명을 문자열로 받는 공용 래퍼를 경유하는 호출도 포함됩니다.
     paths:
       include: ["*.java"]
       exclude: ["*Test.java"]
-    pattern-regex: 'MessageDigest\.getInstance\(\s*"(MD5|SHA-?1)"'
+    pattern-regex: '(?:MessageDigest|Mac)\.getInstance\(\s*"(?i:MD5|SHA-?1|HmacMD5|HmacSHA-?1)"|\b(?:DigestUtils|Hashing)\.(?:md5|sha1)\w*\s*\(|\b\w*(?i:digest|hash|encrypt|decrypt|sign|hmac|crypt)\w*\s*\(\s*"(?i:MD5|SHA-?1|HmacMD5|HmacSHA-?1)"|\b(?:static\s+final\s+String|final\s+String|String)\s+\w*(?i:alg|algorithm|digest|hash|hmac)\w*\s*=\s*"(?i:MD5|SHA-?1|HmacMD5|HmacSHA-?1)"'
+
+  # 취약 암호 알고리즘 — 공용 래퍼 경유 호출·상수 선언형 (CWE-327) (#34).
+  #
+  # finguard.java.weak-cipher(ERROR)와 분리한 별도 룰이다. 이쪽은 "함수명 어휘 + 알고리즘
+  # 리터럴" 이라는 휴리스틱 매치라, 원 룰과 같은 ERROR 를 매기면 오탐이 기본 게이트
+  # (FINGUARD_BLOCK_ON=ERROR)로 머지를 직접 막는다. WARNING 으로 시작하고 승격은 실코드
+  # 검증 후 별도 판단한다.
+  #
+  # 알려진 한계: 알고리즘명이 호출부에도 상수에도 리터럴로 나타나지 않고 설정/DB 에서
+  # 주입되는 형태는 정적 분석으로 확정할 수 없다. 정의부(getInstance($ALG))에 INFO 룰을
+  # 두는 안은 채택하지 않았다 — 잘 작성된 crypto 래퍼일수록 더 많이 발화하는 구조라
+  # MR 인라인 코멘트의 신호 대 잡음비를 직접 훼손한다.
+  - id: finguard.java.weak-cipher-wrapper
+    languages: [regex]
+    severity: WARNING
+    message: 취약한 암호 알고리즘(DES·3DES·RC4·Blowfish) 이름이 암·복호화 함수의 인자 또는 알고리즘 상수로 지정돼 있습니다. 공용 래퍼를 경유하더라도 실제로 그 알고리즘이 사용됩니다. AES/GCM 등 인증 암호로 교체해야 합니다.
+    paths:
+      include: ["*.java"]
+      exclude: ["*Test.java"]
+    pattern-regex: '\b\w*(?i:encrypt|decrypt|cipher|crypt|seal|unseal)\w*\s*\(\s*"(?i:DES|DESede|TripleDES|RC4|ARCFOUR|Blowfish)[^"]*"|\b(?:static\s+final\s+String|final\s+String|String)\s+\w*(?i:alg|algorithm|cipher|transformation)\w*\s*=\s*"(?i:DES|DESede|TripleDES|RC4|ARCFOUR|Blowfish)[^"]*"'
 
   - id: finguard.java.weak-cipher
     languages: [regex]
