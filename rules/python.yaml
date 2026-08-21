@@ -135,3 +135,50 @@ rules:
       - pattern: yaml.load($X, Loader=yaml.Loader)
       - pattern: yaml.load($X, Loader=yaml.UnsafeLoader)
       - pattern: yaml.unsafe_load(...)
+
+  # 와일드카드 CORS + 자격증명 허용 (#35).
+  # Starlette CORSMiddleware 는 allow_origins=["*"] 와 allow_credentials=True 가 함께 오면
+  # Access-Control-Allow-Origin 에 "*" 를 그대로 쓰지 않고 요청 Origin 을 반향(echo)하면서
+  # Access-Control-Allow-Credentials: true 를 붙인다. "브라우저가 와일드카드+자격증명을
+  # 거부하니 무해하다" 는 통념과 달리 임의 오리진이 자격증명 동반 요청에 성공한다.
+  # 화이트리스트를 쓰는 정상 구현은 $O 조건에서 자연 제외된다.
+  - id: finguard.python.cors-wildcard-credentials
+    languages: [python]
+    severity: ERROR
+    message: 모든 오리진을 허용(*)하면서 자격증명(쿠키·인증헤더) 동반 요청까지 허용하고 있습니다. 임의 웹페이지가 이용자의 브라우저를 통해 인증된 엔드포인트를 호출할 수 있습니다. 허용 오리진을 명시적 화이트리스트로 제한해야 합니다.
+    paths:
+      exclude: ["test_*.py", "*_test.py", "conftest.py"]
+    patterns:
+      - pattern-either:
+          - pattern: $APP.add_middleware(CORSMiddleware, ..., allow_origins=$O, ..., allow_credentials=True, ...)
+          - pattern: CORSMiddleware(..., allow_origins=$O, ..., allow_credentials=True, ...)
+          - pattern: CORS(..., origins=$O, ..., supports_credentials=True, ...)
+      - metavariable-pattern:
+          metavariable: $O
+          pattern-either:
+            - pattern: '["*"]'
+            - pattern: '"*"'
+
+  # 자격증명 없는 와일드카드 CORS (#35).
+  # 브라우저가 쿠키·Authorization 헤더를 싣지 않으므로 위험도가 다르다 — 게이트를 막지
+  # 않도록 WARNING 으로 분리한다. 자격증명까지 허용하는 경우는 위 ERROR 룰이 잡는다.
+  - id: finguard.python.cors-wildcard-origin
+    languages: [python]
+    severity: WARNING
+    message: 모든 오리진(*)에 CORS 를 허용하고 있습니다. 인증이 필요 없는 공개 API 가 아니라면 허용 오리진을 명시적 화이트리스트로 제한해야 합니다.
+    paths:
+      exclude: ["test_*.py", "*_test.py", "conftest.py"]
+    patterns:
+      - pattern-either:
+          - pattern: $APP.add_middleware(CORSMiddleware, ..., allow_origins=$O, ...)
+          - pattern: CORSMiddleware(..., allow_origins=$O, ...)
+          - pattern: CORS(..., origins=$O, ...)
+      - metavariable-pattern:
+          metavariable: $O
+          pattern-either:
+            - pattern: '["*"]'
+            - pattern: '"*"'
+      # 자격증명까지 허용하는 조합은 cors-wildcard-credentials(ERROR) 담당 — 중복 코멘트 방지
+      - pattern-not: $APP.add_middleware(CORSMiddleware, ..., allow_credentials=True, ...)
+      - pattern-not: CORSMiddleware(..., allow_credentials=True, ...)
+      - pattern-not: CORS(..., supports_credentials=True, ...)
