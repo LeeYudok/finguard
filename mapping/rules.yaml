@@ -106,7 +106,7 @@
   severity: ERROR
   basis: 개발보안가이드 「보안기능 - 중요정보 평문 전송」
   kisa_item: "전자금융기반시설 평가기준(2026) 웹·모바일·HTS 65 (통신구간 암호화 적용)"
-  explain: NSAllowsArbitraryLoads=true 는 앱 전체에서 평문 HTTP 를 허용해 iOS 의 전송보안(ATS)을 무력화합니다. 예외가 필요하면 도메인 단위 예외로 좁혀야 합니다.
+  explain: NSAllowsArbitraryLoads=true 는 앱 전체에서 평문 HTTP 를 허용해 Apple 플랫폼(iOS/macOS/watchOS/tvOS)의 전송보안(ATS)을 무력화합니다. 예외가 필요하면 도메인 단위 예외로 좁혀야 합니다.
   fix_example: |
     ```xml
     <key>NSAppTransportSecurity</key>
