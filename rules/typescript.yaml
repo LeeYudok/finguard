@@ -15,16 +15,55 @@ rules:
       include: ["*.ts", "*.tsx", "*.js", "*.jsx"]
     pattern-regex: '\b(eval|new\s+Function)\s*\('
 
+  # 식별자 어휘·억제는 7개 언어 공통 목록이다 (#36·#23). TS 만 #29 의 파일 소유권 충돌로
+  # 이식에서 빠져 있었다 (#70). 단독 `key` 는 넣지 않는다 — map key·헤더명으로 오탐이
+  # 폭증한다. app_secret·client_secret 은 `secret` 이, apikey 는 `api[_-]?key` 가 이미
+  # 포섭하므로 중복 항목은 두지 않는다.
+  #
+  # TS 고유 구문 3가지를 다른 언어판에 덧붙였다.
+  #  (1) 선언 키워드(const/let/var) 요구를 없앴다 — 객체 리터럴 프로퍼티
+  #      (`{ apiKey: "..." }`)·클래스 필드·헤더 맵(`"X-Api-Key": "..."`)이 전부 미탐이었다.
+  #  (2) 타입 주석을 건너뛴다 — `const password: string = "..."` 는 식별자 바로 뒤가
+  #      `=` 가 아니라 `:` 라 다른 언어판 정규식으로는 잡히지 않는다.
+  #  (3) `===`/`==` 비교식도 본다 — 하드코드 자격증명과의 동등 비교는 그 자체가 검출 대상이다.
+  #
+  # 백틱(템플릿 리터럴)은 의도적으로 제외했다 — `` `Bearer ${token}` `` 같은 보간 문자열이
+  # 값 자리에 그대로 들어와 오탐이 된다. 보간 여부 판정을 붙일 때 별도로 다룬다.
   - id: finguard.ts.hardcoded-secret
     languages: [regex]
     severity: ERROR
     message: 소스코드에 비밀정보(비밀번호·API 키·토큰)가 하드코드되어 있습니다.
     paths:
       include: ["*.ts", "*.tsx", "*.js", "*.jsx"]
+      exclude: ["*.test.ts", "*.spec.ts", "*.test.tsx", "*.spec.tsx", "*.test.js", "*.spec.js", "*.test.jsx", "*.spec.jsx"]
     patterns:
-      - pattern-regex: '(?i)\b(const|let|var)\s+\w*(password|passwd|secret|apikey|api_key)\w*\s*=\s*["''](?!(?-i:[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+)")(?!(?-i:[a-z]+(?:_[a-z]+)+)")\S{8,}["'']'
+      - pattern-regex: '(?i)\b\w*(password|passwd|pwd|secret|api[_-]?key|access[_-]?token|refresh[_-]?token|auth[_-]?token|credential|passphrase|private[_-]?key|signing[_-]?key|encrypt(?:ion)?[_-]?key|master[_-]?key|aes[_-]?key|hmac[_-]?key)\w*["'']?\s*(?::\s*[\w<>\[\].|?]+\s*)?[:=]{1,3}\s*(?:"(?!(?-i:[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+)")(?!(?-i:[a-z]+(?:_[a-z]+)+)")[^"%/{][^"]{7,}"|''(?![A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+'')(?![a-z]+(?:_[a-z]+)+'')[^''%/{][^'']{7,}'')'
       # 마스킹 플레이스홀더는 시크릿이 아니다 — 오히려 가리는 코드다
       - pattern-not-regex: '(?i)["''`](\*{3,}|x{3,}|•{3,}|\.{4,}|#{3,}|_{4,}|redacted|<[^>]*redact[^>]*>|change[_-]?me|placeholder|dummy|your[_-][\w-]*|todo|fixme)["''`]|[:=]\s*(\*{3,}|•{3,}|#{3,})(?![\w-])'
+      # 값 전체가 플레이스홀더인 unquoted 스칼라도 억제한다 (#23).
+      # 따옴표를 optional 로 푸는 대신 값 경계(줄 끝)로 앵커해 "값 전체가 플레이스홀더"라는
+      # 원래 의미를 보존한다 — 무앵커 부분일치로 바꾸면 실키 안의 우연한 xxx·todo 까지 억제된다.
+      - pattern-not-regex: '(?im)^[ \t]*(?:export[ \t]+)?(-[ \t]+)?["'']?[\w.-]+["'']?[ \t]*[:=][ \t]*["''`]?(\*{3,}|x{3,}|•{3,}|\.{4,}|#{3,}|_{4,}|redacted|change[_-]?me|placeholder|dummy|your[_-][\w-]*|todo|fixme)["''`]?[ \t]*[,;)]*[ \t]*(?:#.*|//.*)?$'
+      # 국내 샘플 코드의 표준 관용구인 한국어 안내문은 시크릿이 아니라 입력 지시문이다 (#23).
+      - pattern-not-regex: '(?im)^[^\n]*[:=][ \t]*["''`]?[^"''`\n]*(입력[ \t]*(?:하세요|해[ \t]*주세요|해주세요|바랍니다|하십시오)|여기에?[ \t]*입력|발급[ \t]*받은|본인의|자신의|예시|샘플)[^\n]*$'
+
+  # 테스트 코드 시크릿 (#25 의 이원화 정책을 TS 에 적용 — #70).
+  # 운영 룰과 어휘·억제는 같고 값 형태 조건만 강하다(길이·문자 구성이 실제 자격증명 형태일 때만).
+  # 테스트 픽스처의 "pw1234"·"test-password" 같은 값으로 도구가 못 쓰게 되는 것을 막는다.
+  # 대상은 파일명 규약(`*.test.ts`·`*.spec.ts` 계열)만 본다 — `__tests__/` 디렉터리 규약은
+  # 픽스처 디렉터리가 평평해서(#60) 회귀 테스트로 고정할 수 없어 이번 범위에서 뺐다.
+  # 그 경로의 파일은 종전대로 운영 룰이 덮는다.
+  - id: finguard.ts.hardcoded-secret-test
+    languages: [regex]
+    severity: ERROR
+    message: 테스트 코드에 비밀정보(비밀번호·API 키·토큰)가 하드코드되어 있습니다. 저장소와 git 히스토리에 그대로 남으므로 운영 코드와 동일하게 제거·회전해야 합니다.
+    paths:
+      include: ["*.test.ts", "*.spec.ts", "*.test.tsx", "*.spec.tsx", "*.test.js", "*.spec.js", "*.test.jsx", "*.spec.jsx"]
+    patterns:
+      - pattern-regex: '(?i)\b\w*(password|passwd|pwd|secret|api[_-]?key|access[_-]?token|refresh[_-]?token|auth[_-]?token|credential|passphrase|private[_-]?key|signing[_-]?key|encrypt(?:ion)?[_-]?key|master[_-]?key|aes[_-]?key|hmac[_-]?key)\w*["'']?\s*(?::\s*[\w<>\[\].|?]+\s*)?[:=]{1,3}\s*(?:"(?=[0-9]{12,}|[A-Za-z0-9+/=_.\-]{16,}|(?=[^"]{12,})(?=[^"]*[A-Za-z])(?=[^"]*[0-9]))(?!https?://)(?!jdbc:)(?!(?-i:[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+)")(?!(?-i:[a-z]+(?:_[a-z]+)+)")[^"%/{][^"]{7,}"|''(?=[0-9]{12,}|[A-Za-z0-9+/=_.\-]{16,}|(?=[^'']{12,})(?=[^'']*[A-Za-z])(?=[^'']*[0-9]))(?!https?://)(?!jdbc:)(?![A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+'')(?![a-z]+(?:_[a-z]+)+'')[^''%/{][^'']{7,}'')'
+      - pattern-not-regex: '(?i)["''`](\*{3,}|x{3,}|•{3,}|\.{4,}|#{3,}|_{4,}|redacted|<[^>]*redact[^>]*>|change[_-]?me|placeholder|dummy|your[_-][\w-]*|todo|fixme)["''`]|[:=]\s*(\*{3,}|•{3,}|#{3,})(?![\w-])'
+      - pattern-not-regex: '(?im)^[ \t]*(?:export[ \t]+)?(-[ \t]+)?["'']?[\w.-]+["'']?[ \t]*[:=][ \t]*["''`]?(\*{3,}|x{3,}|•{3,}|\.{4,}|#{3,}|_{4,}|redacted|change[_-]?me|placeholder|dummy|your[_-][\w-]*|todo|fixme)["''`]?[ \t]*[,;)]*[ \t]*(?:#.*|//.*)?$'
+      - pattern-not-regex: '(?im)^[^\n]*[:=][ \t]*["''`]?[^"''`\n]*(입력[ \t]*(?:하세요|해[ \t]*주세요|해주세요|바랍니다|하십시오)|여기에?[ \t]*입력|발급[ \t]*받은|본인의|자신의|예시|샘플)[^\n]*$'
 
   - id: finguard.ts.http-url
     languages: [regex]
