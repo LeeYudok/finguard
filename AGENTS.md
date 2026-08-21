@@ -295,6 +295,19 @@ block_on: [ERROR, WARNING]
   룰 설정과 무관하게 통째로 사라진다. 운영 스캔에서는 `internal/scanner` 가 대상 루트에
   같은 파일을 심는다(레포가 자기 것을 갖고 있으면 건드리지 않는다).
 
+### 스코프는 룰 파일이 소유한다
+
+`DefaultExcludes`(`internal/scanner/exclude.go`)의 전역 `--exclude` 는 semgrep 의 **타겟
+선정 단계**에서 작동해 룰의 `paths.include` 보다 먼저 파일을 걷어낸다. 그래서 전역에서
+제외한 경로는 어떤 룰도 볼 수 없다 — 그 경로를 의도적으로 점검하는 룰이 있어도 마찬가지다.
+
+- 특정 경로를 **의도적으로 점검하는 룰**(예: `finguard.swift.insecure-trust-vendor` 는
+  벤더 코드의 인증서 검증 무력화를 본다)이 존재하면, 그 경로를 `DefaultExcludes` 에
+  넣으면 안 된다. 제외가 필요한 다른 룰들은 각자 `paths.exclude` 에 적는다 (#75).
+- `Pods`·`Carthage` 가 이 경우다. `DefaultExcludes` 에 넣으면
+  `TestDefaultExcludesLeavesVendorScopeToRules` 가 실패한다.
+- 전역 제외에 새 항목을 추가할 때는 **그 경로를 대상으로 하는 룰이 없는지** 먼저 확인하라.
+
 ## 작업 방식
 
 - 한 번에 한 패키지씩. 완료 후 빌드와 테스트 통과를 확인하고 다음으로 넘어간다.

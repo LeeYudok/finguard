@@ -7,10 +7,9 @@
 //  마커 파서가 하위 디렉터리를 순회하지 않던 동안에는 그게 불가능해서 이 룰만
 //  회귀 픽스처 없이 머지됐다 (#60).
 //
-//  경로가 Pods/ 가 아니라 Carthage/ 인 이유: finguard 의 DefaultExcludes 에
-//  "Pods" 가 들어 있어 `CLI.Scan` 이 semgrep 에 `--exclude Pods` 를 넘긴다.
-//  즉 Pods/ 하위는 룰의 include 와 무관하게 스캔 자체에서 빠진다. Carthage/ 는
-//  DefaultExcludes 에 없어 실제 운영 스캔에서도 이 룰이 발화하는 경로다.
+//  #75 이후로는 Pods/ 하위도 같은 방식으로 검증한다(ExamplePodsTrustBypass.swift).
+//  그 전에는 DefaultExcludes 의 "Pods" 가 타겟 단계에서 걸러 이 룰의 include 가
+//  도달하지 못했고, 그래서 이 픽스처만 Carthage/ 에 있었다.
 //
 //  합성 코드이며 실제 라이브러리 코드가 아니다.
 //

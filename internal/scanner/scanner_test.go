@@ -61,6 +61,23 @@ func TestDefaultExcludesCoversBuildOutputAndDeps(t *testing.T) {
 	}
 }
 
+// 벤더 경로는 전역이 아니라 룰별 paths.exclude 가 소유한다 (#75).
+//
+// 전역 `--exclude` 는 semgrep 의 타겟 선정 단계에서 걸러버려 룰의 paths.include 보다
+// 먼저 작동한다. 그래서 여기에 "Pods" 를 되돌려 놓으면, 벤더 경로를 **의도적으로**
+// 점검하는 finguard.swift.insecure-trust-vendor 의 include 가 다시 도달 불가가 된다
+// (벤더 Swift 코드의 인증서 검증 무력화는 최종 바이너리에 그대로 실려 나간다).
+//
+// 일반 Swift 룰 9개의 벤더 제외는 rules/swift.yaml 의 룰별 exclude 로 이관돼 있다.
+func TestDefaultExcludesLeavesVendorScopeToRules(t *testing.T) {
+	for _, notWant := range []string{"Pods", "Carthage"} {
+		if contains(DefaultExcludes, notWant) {
+			t.Errorf("기본 제외 목록에 %q 가 있다 — 벤더 경로를 점검하는 룰의 include 가 도달 불가가 된다 (#75). "+
+				"제외가 필요하면 rules/swift.yaml 의 룰별 paths.exclude 에 넣어라", notWant)
+		}
+	}
+}
+
 func contains(ss []string, s string) bool { return indexOf(ss, s) >= 0 }
 
 func indexOf(ss []string, s string) int {
