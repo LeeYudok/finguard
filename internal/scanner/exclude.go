@@ -18,7 +18,11 @@ var DefaultExcludes = []string{
 	"third_party",
 	"thirdparty",
 	"bower_components",
-	"Pods",
+	// "Pods" 는 여기서 빼고 rules/swift.yaml 의 룰별 paths.exclude 로 옮겼다 (#75).
+	// 전역에서 제외하면 semgrep 이 타겟 단계에서 걸러버려, 벤더 경로를 **의도적으로**
+	// 점검하는 룰(finguard.swift.insecure-trust-vendor — 벤더 Swift 코드의 인증서 검증
+	// 무력화는 최종 바이너리에 그대로 실려 나간다)의 include 가 도달하지 못했다.
+	// Carthage 가 원래 여기 없었던 것과의 비대칭도 이 이관으로 해소된다.
 	".venv",
 	"site-packages",
 

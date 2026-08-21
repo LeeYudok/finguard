@@ -16,7 +16,17 @@ rules:
     message: 소스코드에 비밀정보(비밀번호·API 키·토큰)가 하드코드되어 있습니다.
     paths:
       include: ["*.swift"]
-      exclude: ["**/build/**", "**/DerivedData/**", "**/*.xcframework/**"]
+      exclude:
+        - "**/build/**"
+        - "**/DerivedData/**"
+        - "**/*.xcframework/**"
+        # 벤더 의존성 — 전역 DefaultExcludes 가 아니라 여기서 제외한다 (#75).
+        # 벤더 경로를 의도적으로 점검하는 룰(insecure-trust-vendor)이 존재하므로,
+        # 스코프 판단은 룰 파일이 단일 진실원천이어야 한다.
+        - "Pods/**"
+        - "**/Pods/**"
+        - "Carthage/**"
+        - "**/Carthage/**"
     patterns:
       # 식별자 어휘는 6개 언어 공통 목록이다 (#36). 단독 `key` 는 넣지 않는다.
       # 단독 `token` 은 이 룰에 원래 있던 항목이라 유지한다 — 공통 목록으로 대체하면
@@ -37,7 +47,17 @@ rules:
     message: 평문 HTTP URL 이 사용되고 있습니다. TLS(https) 로 전환해야 합니다.
     paths:
       include: ["*.swift"]
-      exclude: ["**/build/**", "**/DerivedData/**", "**/*.xcframework/**"]
+      exclude:
+        - "**/build/**"
+        - "**/DerivedData/**"
+        - "**/*.xcframework/**"
+        # 벤더 의존성 — 전역 DefaultExcludes 가 아니라 여기서 제외한다 (#75).
+        # 벤더 경로를 의도적으로 점검하는 룰(insecure-trust-vendor)이 존재하므로,
+        # 스코프 판단은 룰 파일이 단일 진실원천이어야 한다.
+        - "Pods/**"
+        - "**/Pods/**"
+        - "Carthage/**"
+        - "**/Carthage/**"
     pattern-regex: '(?im)^(?![ \t]*(?://|\*|/\*)).*"http://(?!localhost|127\.0\.0\.1|0\.0\.0\.0|schemas\.|xmlns|(?:www\.)?w3\.org|(?:[\w.]+\.)?apache\.org|[\w.]*xml\.org|java\.sun\.com|(?:www\.)?example\.(?:com|org)|(?:www\.)?unicode\.org|(?:www\.)?jflex\.de|purl\.org|iana\.org|ietf\.org|slf4j\.org|json-schema\.org)[^"]+"'
 
   # 금융 실시간 채널(시세·체결통보)은 대부분 웹소켓이고 접속키가 함께 흐른다 (#30).
@@ -49,7 +69,17 @@ rules:
     message: 평문 WebSocket(ws://) 으로 통신하고 있습니다. 실시간 시세·체결통보 채널에는 접속키와 거래내역이 흐르므로 wss:// 로 전환해야 합니다.
     paths:
       include: ["*.swift"]
-      exclude: ["**/build/**", "**/DerivedData/**", "**/*.xcframework/**"]
+      exclude:
+        - "**/build/**"
+        - "**/DerivedData/**"
+        - "**/*.xcframework/**"
+        # 벤더 의존성 — 전역 DefaultExcludes 가 아니라 여기서 제외한다 (#75).
+        # 벤더 경로를 의도적으로 점검하는 룰(insecure-trust-vendor)이 존재하므로,
+        # 스코프 판단은 룰 파일이 단일 진실원천이어야 한다.
+        - "Pods/**"
+        - "**/Pods/**"
+        - "Carthage/**"
+        - "**/Carthage/**"
     pattern-regex: '(?im)^(?![ \t]*(?://|\*|/\*)).*"ws://(?!localhost|127\.0\.0\.1|0\.0\.0\.0|schemas\.|xmlns|(?:www\.)?w3\.org|(?:[\w.]+\.)?apache\.org|[\w.]*xml\.org|java\.sun\.com|(?:www\.)?example\.(?:com|org)|(?:www\.)?unicode\.org|(?:www\.)?jflex\.de|purl\.org|iana\.org|ietf\.org|slf4j\.org|json-schema\.org)[^"]+"'
 
   # UserDefaults 평문 저장 (#31).
@@ -65,7 +95,17 @@ rules:
     message: UserDefaults 에 중요정보를 평문 저장하고 있습니다. Keychain 을 사용해야 합니다.
     paths:
       include: ["*.swift"]
-      exclude: ["**/build/**", "**/DerivedData/**", "**/*.xcframework/**"]
+      exclude:
+        - "**/build/**"
+        - "**/DerivedData/**"
+        - "**/*.xcframework/**"
+        # 벤더 의존성 — 전역 DefaultExcludes 가 아니라 여기서 제외한다 (#75).
+        # 벤더 경로를 의도적으로 점검하는 룰(insecure-trust-vendor)이 존재하므로,
+        # 스코프 판단은 룰 파일이 단일 진실원천이어야 한다.
+        - "Pods/**"
+        - "**/Pods/**"
+        - "Carthage/**"
+        - "**/Carthage/**"
     pattern-either:
       - pattern-regex: '(?i)UserDefaults[^\n]*\.set\([^\n]*(password|passwd|token|secret|pin|cardno|card_no|accountno)'
       # UserDefaults 를 감싸는 커스텀 propertyWrapper 의 사용부 (@UserDefault/@Storage/@UserInfo …)
@@ -79,7 +119,17 @@ rules:
     message: 폐기된 UIWebView 를 사용하고 있습니다. WKWebView 로 교체해야 합니다.
     paths:
       include: ["*.swift"]
-      exclude: ["**/build/**", "**/DerivedData/**", "**/*.xcframework/**"]
+      exclude:
+        - "**/build/**"
+        - "**/DerivedData/**"
+        - "**/*.xcframework/**"
+        # 벤더 의존성 — 전역 DefaultExcludes 가 아니라 여기서 제외한다 (#75).
+        # 벤더 경로를 의도적으로 점검하는 룰(insecure-trust-vendor)이 존재하므로,
+        # 스코프 판단은 룰 파일이 단일 진실원천이어야 한다.
+        - "Pods/**"
+        - "**/Pods/**"
+        - "Carthage/**"
+        - "**/Carthage/**"
     pattern-regex: '\bUIWebView\b'
 
   - id: finguard.swift.weak-hash
@@ -88,7 +138,17 @@ rules:
     message: 취약한 해시 알고리즘(MD5/SHA-1)을 사용하고 있습니다.
     paths:
       include: ["*.swift"]
-      exclude: ["**/build/**", "**/DerivedData/**", "**/*.xcframework/**"]
+      exclude:
+        - "**/build/**"
+        - "**/DerivedData/**"
+        - "**/*.xcframework/**"
+        # 벤더 의존성 — 전역 DefaultExcludes 가 아니라 여기서 제외한다 (#75).
+        # 벤더 경로를 의도적으로 점검하는 룰(insecure-trust-vendor)이 존재하므로,
+        # 스코프 판단은 룰 파일이 단일 진실원천이어야 한다.
+        - "Pods/**"
+        - "**/Pods/**"
+        - "Carthage/**"
+        - "**/Carthage/**"
     pattern-regex: '\b(CC_MD5|CC_SHA1|Insecure\.MD5|Insecure\.SHA1)\b'
 
   - id: finguard.swift.print-sensitive
@@ -97,7 +157,17 @@ rules:
     message: 로그/콘솔에 중요정보가 출력될 수 있습니다.
     paths:
       include: ["*.swift"]
-      exclude: ["**/build/**", "**/DerivedData/**", "**/*.xcframework/**"]
+      exclude:
+        - "**/build/**"
+        - "**/DerivedData/**"
+        - "**/*.xcframework/**"
+        # 벤더 의존성 — 전역 DefaultExcludes 가 아니라 여기서 제외한다 (#75).
+        # 벤더 경로를 의도적으로 점검하는 룰(insecure-trust-vendor)이 존재하므로,
+        # 스코프 판단은 룰 파일이 단일 진실원천이어야 한다.
+        - "Pods/**"
+        - "**/Pods/**"
+        - "Carthage/**"
+        - "**/Carthage/**"
     pattern-regex: '(?im)^(?![ \t]*(?://|\*|/\*)).*?\b(?:print|NSLog|os_log)\((?:(?:"(?:\\.|[^"\\\n])*"|[^"\n])*?(?:\b(?:password|passwd|token|secret|pin|cardno|card_no)\b|주민)|[^\n]*?\\\([^)\n]*(?:\b(?:password|passwd|token|secret|pin|cardno|card_no)\b|주민))'
 
   - id: finguard.swift.sql-interpolation
@@ -106,7 +176,17 @@ rules:
     message: SQL 문자열에 변수를 직접 보간(interpolation)하고 있습니다. 바인딩 파라미터를 사용해야 합니다.
     paths:
       include: ["*.swift"]
-      exclude: ["**/build/**", "**/DerivedData/**", "**/*.xcframework/**"]
+      exclude:
+        - "**/build/**"
+        - "**/DerivedData/**"
+        - "**/*.xcframework/**"
+        # 벤더 의존성 — 전역 DefaultExcludes 가 아니라 여기서 제외한다 (#75).
+        # 벤더 경로를 의도적으로 점검하는 룰(insecure-trust-vendor)이 존재하므로,
+        # 스코프 판단은 룰 파일이 단일 진실원천이어야 한다.
+        - "Pods/**"
+        - "**/Pods/**"
+        - "Carthage/**"
+        - "**/Carthage/**"
     pattern-regex: '"(?i)(SELECT|INSERT|UPDATE|DELETE)\b[^"]*\\\('
 
   # ATS 전역 해제 (#33).
@@ -162,7 +242,17 @@ rules:
     message: WebView 의 파일 접근 설정이 로컬 파일 탈취에 악용될 수 있습니다.
     paths:
       include: ["*.swift"]
-      exclude: ["**/build/**", "**/DerivedData/**", "**/*.xcframework/**"]
+      exclude:
+        - "**/build/**"
+        - "**/DerivedData/**"
+        - "**/*.xcframework/**"
+        # 벤더 의존성 — 전역 DefaultExcludes 가 아니라 여기서 제외한다 (#75).
+        # 벤더 경로를 의도적으로 점검하는 룰(insecure-trust-vendor)이 존재하므로,
+        # 스코프 판단은 룰 파일이 단일 진실원천이어야 한다.
+        - "Pods/**"
+        - "**/Pods/**"
+        - "Carthage/**"
+        - "**/Carthage/**"
     pattern-regex: '\b(allowFileAccessFromFileURLs|allowUniversalAccessFromFileURLs)\b'
 
   # 인증서 검증 무력화 (#33).
