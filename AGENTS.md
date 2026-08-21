@@ -258,11 +258,36 @@ block_on: [ERROR, WARNING]
   REALTIME_FEED_URL = "ws://ops.example-broker.co.kr:21000"
   ```
 
-  마커 뒤에 설명을 덧붙이면 매칭되지 않는다(룰ID 만 온다). `//` 주석도 같은 문법.
+  마커 뒤에 설명을 덧붙이면 매칭되지 않는다(룰ID 만 온다).
+- **주석 형태 3종** — 파일 문법에 맞는 것을 쓴다.
+
+  | 형태 | 대상 |
+  | :--- | :--- |
+  | `# EXPECT: <룰ID>` | 파이썬·셸·YAML·properties |
+  | `// EXPECT: <룰ID>` | Go·Java·Kotlin·Swift·TS |
+  | `<!-- EXPECT: <룰ID> -->` | XML·plist (#61) |
+
+  XML 은 한 줄로 여닫는다. 주석을 다음 줄에서 닫거나 `<!--` / `# EXPECT:` / `-->` 로
+  쪼개던 우회책은 폐기했다 (#61). 닫기(`-->`) 앞뒤에 설명을 붙이면 다른 형태와 똑같이
+  매칭되지 않는다.
+- **하위 디렉터리도 순회한다** (#60). 마커 파서(`walkFixtures`)와 스캔(`CLI.Scan`)의 순회
+  범위가 같으므로, `paths.include` 로 경로 구조 자체를 판정 기준으로 삼는 룰
+  (`finguard.swift.insecure-trust-vendor` 등)도 벤더 경로 하위에 픽스처를 두고 검증한다.
+  기대값 키는 픽스처 루트 기준 **상대경로**라 다른 디렉터리의 동명 파일이 섞이지 않는다.
+  - 단 `DefaultExcludes`(`internal/scanner/exclude.go`)에 걸리는 경로는 스캔 자체에서
+    빠진다 — `Pods/` 하위 픽스처는 `--exclude Pods` 때문에 검출되지 않으므로
+    `Carthage/` 를 쓴다.
+  - 바이너리(NUL 바이트 포함 파일)는 마커 순회에서 건너뛴다.
 - **`safe_` 접두 파일은 대조군**이라 마커를 가질 수 없다 — 어떤 룰에도 걸리지 않아야 한다.
+  하위 디렉터리의 `safe_*` 도 같은 기준으로 검사한다.
 - `TestFixtureExpectationsMatchScan` 이 양방향으로 검사한다. 마커 있는데 미검출 = 미탐 회귀,
   마커 없는데 검출 = 오탐 회귀. 라인 번호를 테스트에 적지 않으므로 블록을 어디에 추가하든
   기대값이 따라 움직이고, 픽스처를 건드리는 PR 끼리 충돌하지 않는다.
+- 마커 문법·순회 구현은 **`internal/scanner/expect_marker_test.go` 한 곳**에만 있다.
+  이 파일에는 빌드 태그가 없어 기본 `go test` 와 `-tags semgrep_integration` 양쪽에서
+  컴파일되고, 태그 뒤의 `integration_test.go` 가 그 정의를 그대로 쓴다. 예전처럼 문법을
+  양쪽에 복제하면 어긋난 순간 마커가 조용히 무시되고 통합 테스트가 "기대 0건 · 검출 0건"
+  으로 통과한다 — 복제하지 말 것 (#60·#61).
 - 통합 테스트 실행: `go test -race -mod=vendor -tags semgrep_integration ./internal/scanner/`
 - 레포 루트의 **`.semgrepignore` 를 지우지 말 것** (#25). semgrep 은 이 파일이 없으면
   내장 기본 무시목록을 쓰는데 거기에 `test/`·`tests/`·`*_test.go` 가 들어 있어,
