@@ -19,6 +19,10 @@ import yaml
 PAYMENT_API_KEY = os.getenv("PAYMENT_API_KEY")
 DB_PASSWORD = ""
 SECRET_PLACEHOLDER = "changeme"
+# 단독 `key` 는 공통 어휘에서 제외한다 (#36) — 맵 키·헤더명 오탐이 폭증한다.
+key = "Authorization-Bearer-Header"
+sort_key = "settlement_date_desc"
+cache_key = "user:1234:profile:v2"
 
 
 # 2) finguard.python.weak-hash — 비보안 용도(체크섬)로 명시한 MD5 는 대상이 아니다.

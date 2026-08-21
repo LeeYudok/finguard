@@ -17,6 +17,15 @@ import yaml
 # EXPECT: finguard.python.hardcoded-secret
 PAYMENT_API_KEY = "sk-test-9f8e7d6c5b4a3210"
 
+# 1-1) 공통 어휘 통일(#36) — ACCESS_TOKEN·ENCRYPTION_KEY·PASSPHRASE 계열은
+#      확장 전 어휘(password|passwd|secret|apikey|api_key|appsecret)로는 미검출이었다.
+# EXPECT: finguard.python.hardcoded-secret
+TRADING_ACCESS_TOKEN = "eyJhbGciOiJIUzI1NiJ9.c3ViOjEyMzQ1"
+# EXPECT: finguard.python.hardcoded-secret
+LEDGER_ENCRYPTION_KEY = "8f2b41c7d90e5a63b18c47f2e0d95a31"
+# EXPECT: finguard.python.hardcoded-secret
+KEYSTORE_PASSPHRASE = "Vault-Store-2026-Qz73"
+
 
 # 2) finguard.python.weak-hash — MD5 로 비밀번호 해시를 생성한다.
 def hash_password(password: str) -> str:

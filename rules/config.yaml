@@ -53,10 +53,15 @@ rules:
         - ".circleci/**"
         - "**/.circleci/**"
     patterns:
+      # 식별자 어휘는 언어 룰과 공통 목록이다 (#36) — ENCRYPTION_KEY·PASSPHRASE·
+      # SIGNING_KEY 계열이 언어에 따라 잡히기도 안 잡히기도 하던 불일치를 없앤다.
+      # 단독 `key` 는 넣지 않는다(맵 키·헤더명 오탐). 단독 `token` 은 이 룰의 기존
+      # 항목이라 유지한다.
+      #
       # 구분자 뒤 공백을 [ \t]* 로 제한한다 — \s* 는 개행을 넘어가 "값이 비어 있는 키"
       # (예: openapi 의 `ApiKeyAuth:`) 가 다음 줄을 값으로 삼는 오탐을 만든다.
       - pattern-either:
-          - pattern-regex: '(?i)^[ \t]*["'']?[\w.-]*(password|passwd|secret|token|api[_-]?key)[\w.-]*["'']?[ \t]*[:=][ \t]*(?![ \t]*$)(?!\$\{)(?!ENC\()["'']?[^\s"''#][^#\n]{3,}'
+          - pattern-regex: '(?i)^[ \t]*["'']?[\w.-]*(password|passwd|pwd|secret|api[_-]?key|token|credential|passphrase|private[_-]?key|signing[_-]?key|encrypt(?:ion)?[_-]?key|master[_-]?key|aes[_-]?key|hmac[_-]?key)[\w.-]*["'']?[ \t]*[:=][ \t]*(?![ \t]*$)(?!\$\{)(?!ENC\()["'']?[^\s"''#][^#\n]{3,}'
           # 고신뢰 프리픽스 — 키 이름과 무관하게 값 자체가 Google API 키다
           - pattern-regex: '\bAIza[0-9A-Za-z_-]{35}\b'
       # 마스킹 플레이스홀더는 시크릿이 아니다 — 오히려 가리는 코드다
@@ -114,7 +119,7 @@ rules:
         - "**/.circleci/**"
     patterns:
       # `- KEY=값` 형태의 script 스텝도 CI 에서 흔한 유출 지점이라 목록 항목 접두를 허용한다.
-      - pattern-regex: '(?i)^[ \t]*(-[ \t]+)?["'']?[\w.-]*(password|passwd|secret|token|api[_-]?key)[\w.-]*["'']?[ \t]*[:=][ \t]*(?![ \t]*$)(?!\$\{)(?!ENC\()["'']?[^\s"''#][^#\n]{3,}'
+      - pattern-regex: '(?i)^[ \t]*(-[ \t]+)?["'']?[\w.-]*(password|passwd|pwd|secret|api[_-]?key|token|credential|passphrase|private[_-]?key|signing[_-]?key|encrypt(?:ion)?[_-]?key|master[_-]?key|aes[_-]?key|hmac[_-]?key)[\w.-]*["'']?[ \t]*[:=][ \t]*(?![ \t]*$)(?!\$\{)(?!ENC\()["'']?[^\s"''#][^#\n]{3,}'
       # 억제 패턴은 줄 전체를 잡아야 필터로 동작한다(위 룰의 주석 참조).
       #
       # 컨테이너 부트스트랩 변수 — services:/image: 로 띄우는 일회성 로컬 자격증명
