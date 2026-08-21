@@ -224,3 +224,46 @@ func TestNoYAMLFixturesUnderRules(t *testing.T) {
 		t.Fatalf("rules/ 순회 실패: %v", err)
 	}
 }
+
+// 회귀(#25): 스캔이 대상 레포에 잔여물을 남기지 않아야 한다.
+//
+// semgrep 내장 무시목록을 대체하려면 대상 루트에 `.semgrepignore` 를 심어야 하는데,
+// `scan --dir=<작업 사본>` 로 자기 레포를 점검하는 로컬 모드에서 그게 남으면
+// 사용자가 의도치 않게 커밋한다. finguard 는 점검 도구이지 대상을 바꾸는 도구가 아니다.
+func TestScanLeavesNoResidueInTarget(t *testing.T) {
+	requireSemgrep(t)
+
+	t.Run("우리가 심은 파일은 스캔 후 사라진다", func(t *testing.T) {
+		dir := t.TempDir()
+		if err := os.WriteFile(filepath.Join(dir, "x.py"), []byte("A = 1\n"), 0o644); err != nil {
+			t.Fatalf("사전 준비 실패: %v", err)
+		}
+		if _, err := (CLI{}).Scan(context.Background(), rulesDir(t), dir); err != nil {
+			t.Fatalf("스캔 실패: %v", err)
+		}
+		if _, err := os.Stat(filepath.Join(dir, ".semgrepignore")); !os.IsNotExist(err) {
+			t.Error("스캔 후 .semgrepignore 가 대상 레포에 남았다 — 사용자가 커밋하게 된다")
+		}
+	})
+
+	t.Run("레포 자신의 파일은 보존된다", func(t *testing.T) {
+		dir := t.TempDir()
+		p := filepath.Join(dir, ".semgrepignore")
+		if err := os.WriteFile(p, []byte("generated/\n"), 0o644); err != nil {
+			t.Fatalf("사전 준비 실패: %v", err)
+		}
+		if err := os.WriteFile(filepath.Join(dir, "x.py"), []byte("A = 1\n"), 0o644); err != nil {
+			t.Fatalf("사전 준비 실패: %v", err)
+		}
+		if _, err := (CLI{}).Scan(context.Background(), rulesDir(t), dir); err != nil {
+			t.Fatalf("스캔 실패: %v", err)
+		}
+		got, err := os.ReadFile(p)
+		if err != nil {
+			t.Fatalf("레포의 .semgrepignore 가 지워졌다: %v", err)
+		}
+		if string(got) != "generated/\n" {
+			t.Errorf("레포의 .semgrepignore 가 변조됐다: %q", string(got))
+		}
+	})
+}

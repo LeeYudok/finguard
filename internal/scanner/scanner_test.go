@@ -87,8 +87,12 @@ func countOf(ss []string, s string) int {
 func TestEnsureSemgrepIgnore(t *testing.T) {
 	dir := t.TempDir()
 
-	if err := ensureSemgrepIgnore(dir); err != nil {
+	created, err := ensureSemgrepIgnore(dir)
+	if err != nil {
 		t.Fatalf("생성 실패: %v", err)
+	}
+	if !created {
+		t.Error("우리가 생성했는데 created=false 다 — 호출부가 스캔 후 되돌리지 못한다")
 	}
 	got, err := os.ReadFile(filepath.Join(dir, ".semgrepignore"))
 	if err != nil {
@@ -113,8 +117,12 @@ func TestEnsureSemgrepIgnoreKeepsExisting(t *testing.T) {
 	if err := os.WriteFile(p, []byte("generated/\n"), 0o644); err != nil {
 		t.Fatalf("사전 준비 실패: %v", err)
 	}
-	if err := ensureSemgrepIgnore(dir); err != nil {
+	created, err := ensureSemgrepIgnore(dir)
+	if err != nil {
 		t.Fatalf("실행 실패: %v", err)
+	}
+	if created {
+		t.Error("레포의 기존 파일인데 created=true 다 — 호출부가 남의 파일을 지우게 된다")
 	}
 	got, err := os.ReadFile(p)
 	if err != nil {

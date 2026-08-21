@@ -49,16 +49,20 @@ const semgrepIgnoreBody = `# finguard 가 생성한 파일 (#25).
 # 제외 경로는 finguard 의 --exclude 와 .finguard.yml 의 ignore 가 담당한다.
 `
 
-// ensureSemgrepIgnore 는 대상 루트에 `.semgrepignore` 가 없을 때만 생성한다.
+// ensureSemgrepIgnore 는 대상 루트에 `.semgrepignore` 가 없을 때만 생성하고,
+// 자기가 만들었는지를 돌려준다(호출부가 스캔 후 되돌리기 위함).
 // 실패해도 스캔 자체는 계속한다 — 무시목록은 정확도 문제이지 중단 사유가 아니다.
-func ensureSemgrepIgnore(targetDir string) error {
+func ensureSemgrepIgnore(targetDir string) (created bool, err error) {
 	p := filepath.Join(targetDir, ".semgrepignore")
 	if _, err := os.Stat(p); err == nil {
-		return nil
+		return false, nil // 레포가 자기 것을 갖고 있다 — 그 의도를 존중한다
 	} else if !os.IsNotExist(err) {
-		return err
+		return false, err
 	}
-	return os.WriteFile(p, []byte(semgrepIgnoreBody), 0o644)
+	if err := os.WriteFile(p, []byte(semgrepIgnoreBody), 0o644); err != nil {
+		return false, err
+	}
+	return true, nil
 }
 
 func (c CLI) Scan(ctx context.Context, rulesPath, targetDir string) ([]Finding, error) {
@@ -66,9 +70,16 @@ func (c CLI) Scan(ctx context.Context, rulesPath, targetDir string) ([]Finding, 
 	if bin == "" {
 		bin = "semgrep"
 	}
-	if err := ensureSemgrepIgnore(targetDir); err != nil {
+	// 우리가 심은 경우에만 스캔 후 되돌린다. `scan --dir=<작업 사본>` 로 자기 레포를
+	// 점검하는 로컬 모드에서 잔여물이 남으면 사용자가 의도치 않게 커밋하게 된다.
+	// finguard 는 점검 도구이지 대상 레포를 바꾸는 도구가 아니다.
+	created, err := ensureSemgrepIgnore(targetDir)
+	if err != nil {
 		// 경로·라인만 남기는 로깅 규약상 여기서는 조용히 진행한다.
 		_ = err
+	}
+	if created {
+		defer func() { _ = os.Remove(filepath.Join(targetDir, ".semgrepignore")) }()
 	}
 	cmd := exec.CommandContext(ctx, bin, scanArgs(rulesPath, targetDir, DefaultExcludes)...)
 	var stdout, stderr bytes.Buffer
