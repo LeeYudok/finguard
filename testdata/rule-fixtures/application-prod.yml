@@ -1,0 +1,25 @@
+# finguard.config.prod-debug-logging (#32) 정탐 픽스처.
+#
+# 파일명에 prod 가 들어간 설정 파일 — 운영 적용이 파일명으로 확인되므로 ERROR.
+# 마커 없는 줄은 오탐 방지 대조군이다.
+spring:
+  config:
+    activate:
+      on-profile: prod
+
+logging:
+  level:
+    root: info
+    # EXPECT: finguard.config.prod-debug-logging
+    com.example.outer.api.tossPayments.*: debug
+    # EXPECT: finguard.config.prod-debug-logging
+    com.example.openbanking: trace
+    # 대조군 — info 는 대상이 아니다
+    com.example.outer.api.kftc: info
+    # 대조군 — 결제·인증 어휘가 없는 패키지
+    com.example.batch.scheduler: debug
+
+management:
+  endpoint:
+    health:
+      show-details: never
