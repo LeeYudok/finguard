@@ -430,3 +430,68 @@ rules:
               - pattern: $E.evaluate($CTX, $W, $TAG, $X)
               - pattern: $E.evaluateExpression($X, ...)
           - focus-metavariable: $X
+
+  # ------------------------------------------------------------------
+  # 10. 개발용 인증 우회 엔드포인트 — 자격증명 검증 없이 토큰 발급 (CWE-489) (#37)
+  # ------------------------------------------------------------------
+  # 여러 줄에 걸친 AND 조건(매핑 애노테이션 경로 어휘 + 같은 메서드 본문의 토큰 발급 호출)이라
+  # 정규식으로는 표현할 수 없어 semantic 모드로 구성했다. Kotlin 문법(fun ...)을 같은 룰에
+  # 섞으면 Java 파서가 파싱 에러를 내므로 languages 는 [java] 단일로 둔다 — Kotlin 대응은
+  # finguard.kotlin.dev-backdoor-endpoint(#28)가 이미 담당한다.
+  #
+  # 억제 사유로 인정하지 않는 것: @Profile("!prod") · 런타임 isProdProfile() 게이트.
+  # 그 게이트는 인터넷에 공개된 staging/검증계에서는 무효라 실제 사고의 유일한(그리고
+  # 뚫린) 방어선이었다.
+  #
+  # 경로 어휘는 "세그먼트" 단위로만 인정한다(/dev/, /local-login/). 부분문자열 매칭이면
+  # /api/v1/devices 같은 정상 경로가 걸린다.
+  - id: finguard.java.dev-auth-endpoint
+    languages: [java]
+    severity: WARNING
+    message: |
+      개발·로컬 전용으로 보이는 경로에서 자격증명 검증 없이 토큰을 발급하고 있습니다. 프로파일 조건(@Profile("!prod")·isProdProfile())만으로는 외부망에 노출된 검증계/개발계를 막지 못합니다. 운영 빌드에서 엔드포인트를 제거하거나(빌드·프로파일 분리), 실제 자격증명 검증을 추가하거나, 네트워크 계층에서 접근을 차단해야 합니다. 이미 그런 완화를 적용했다면 대상 레포의 .finguard.yml `ignore` 에 해당 파일을 명시해 승인 사실을 남기십시오.
+    paths:
+      exclude: ["*Test.java"]
+    patterns:
+      # (A) 개발·로컬 어휘가 경로 세그먼트로 들어간 매핑 애노테이션이 붙은 메서드 안일 것
+      - pattern-either:
+          # @PostMapping("/dev/login") — 인자 하나짜리 축약형
+          - patterns:
+              - pattern-inside: |
+                  @$ANN($PATH)
+                  $RT $M(...) { ... }
+              - metavariable-regex:
+                  metavariable: $ANN
+                  regex: '^(?:Get|Post|Put|Patch|Delete|Request)Mapping$'
+              - metavariable-regex:
+                  metavariable: $PATH
+                  regex: '(?i)^"(?:[^"]*/)?(?:dev|develop|local|test|debug|stub|mock|impersonate|switch-?user|su)(?:[-_]\w+)*(?:/[^"]*)?"$'
+          # @RequestMapping(value = "/debug/switch-user", method = ...) — 명시 인자형
+          - patterns:
+              - pattern-inside: |
+                  @$ANN(value = $PATH, ...)
+                  $RT $M(...) { ... }
+              - metavariable-regex:
+                  metavariable: $ANN
+                  regex: '^(?:Get|Post|Put|Patch|Delete|Request)Mapping$'
+              - metavariable-regex:
+                  metavariable: $PATH
+                  regex: '(?i)^"(?:[^"]*/)?(?:dev|develop|local|test|debug|stub|mock|impersonate|switch-?user|su)(?:[-_]\w+)*(?:/[^"]*)?"$'
+      # (B) 같은 메서드 본문에 토큰 발급 호출이 있을 것 — 코멘트는 이 줄에 달린다
+      - pattern-either:
+          - pattern: $X.generateAccessToken(...)
+          - pattern: $X.createAccessToken(...)
+          - pattern: $X.generateRefreshToken(...)
+          - pattern: $X.createRefreshToken(...)
+          - pattern: $X.generateToken(...)
+          - pattern: $X.createToken(...)
+          - pattern: $X.issueToken(...)
+          # 제공자 객체 이름에 Jwt/Token 이 들어간 경우의 일반 발급 메서드
+          - patterns:
+              - pattern-either:
+                  - pattern: $P.generate(...)
+                  - pattern: $P.create(...)
+                  - pattern: $P.issue(...)
+              - metavariable-regex:
+                  metavariable: $P
+                  regex: '(?i)\w*(?:jwt|token)\w*'
