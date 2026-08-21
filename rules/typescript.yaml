@@ -210,3 +210,125 @@ rules:
               - pattern: createWriteStream($P, ...)
               - pattern: mkdirSync($P, ...)
           - focus-metavariable: $P
+
+  # ── 언어 패리티 보강 (#27) ─────────────────────────────────────────────
+  # java/python/go/kotlin 이 모두 갖고 있던 SQL 조립·암호재료·난수·TLS 룰의 TS 대응.
+  # 국내 결제·핀테크 백엔드의 Node/NestJS 비중이 높아 이 결손은 스택 하나가
+  # 통째로 미점검되는 문제였다.
+
+  # SQL 삽입 (CWE-89).
+  # taint 모드가 아니라 java.sql-string-build 와 같은 직접 patterns 구조다 — 증거 코드는
+  # 환경변수·process.argv 값이 템플릿 리터럴에 직접 들어가고 $REQ.* 를 거치지 않아
+  # taint 소스로는 잡히지 않는다.
+  #
+  # 두 갈래로 나눈다.
+  #  (A) 이름 자체가 unsafe 를 선언하는 raw 실행 API($queryRawUnsafe·$executeRawUnsafe·
+  #      Prisma.raw). 오탐 위험이 낮으므로 인자가 "상수 문자열 리터럴이 아니기만" 하면 잡는다.
+  #      변수 하나만 넘기는 형태(script 를 split 해서 넘기는 증거 코드)도 여기서 걸린다.
+  #      이 갈래만 정규식이다 — semgrep 1.169.0 은 `export namespace X { ... }` 본문 안의
+  #      호출을 AST 패턴으로 매칭하지 못한다(같은 코드를 `namespace X` 로 바꾸면 매칭된다).
+  #      실증거인 PaymentSetupWizard.ts 의 $executeRawUnsafe 가 정확히 그 형태라 AST 로는
+  #      영영 미탐이 된다.
+  #  (B) 범용 실행 싱크(.query/.execute/.raw). 이름만으로는 SQL 인지 알 수 없으므로
+  #      인자에 템플릿 보간(${) 또는 문자열 연결(+)이 있고 SQL 키워드가 보일 때만 발화한다.
+  #
+  # 인자 개수(arity)로 안전을 판정하지 않는다 — 보간과 바인딩을 섞은
+  # `pool.query(`... id = ${req.query.id} AND status = $1`, ["A"])` 가 정확히 취약하기 때문이다.
+  # 태그드 템플릿($queryRaw`...`)은 진짜 파라미터화라 제외되지만, 그 안의 Prisma.raw() 는
+  # 주입 재개통 경로라 (A) 에서 다시 잡는다.
+  - id: finguard.ts.sql-injection
+    languages: [ts, js]
+    severity: ERROR
+    message: SQL 문을 문자열 조립(템플릿 보간·연결)으로 만들어 실행하거나, 파라미터화를 우회하는 raw 실행 API 에 동적 문자열을 넘기고 있습니다. 조립에 쓰인 값이 외부 입력에서 유래하면 SQL 삽입이 가능합니다. 파라미터 바인딩($1 · ? · 태그드 템플릿)을 사용해야 합니다.
+    metadata:
+      cwe: "CWE-89"
+      category: security
+    patterns:
+      - pattern-either:
+          # (A) unsafe 를 이름으로 선언한 raw 실행 API — 인자가 상수 문자열 리터럴이 아니면 발화.
+          #     첫 인자가 변수·호출·보간 템플릿·문자열 연결일 때만 매칭하므로
+          #     $queryRawUnsafe("SELECT 1") 같은 상수 실행은 걸리지 않는다.
+          - pattern-regex: '\$(?:query|execute)RawUnsafe\s*\(\s*(?:[A-Za-z_$][\w$]*(?:\.[\w$]+)*\s*[,)(]|`[^`]*\$\{|["''][^"'']*["'']\s*\+)'
+          - pattern-regex: '\bPrisma\.(?:raw|sql)\s*\(\s*(?:[A-Za-z_$][\w$]*(?:\.[\w$]+)*\s*[,)(]|`[^`]*\$\{|["''][^"'']*["'']\s*\+)'
+          # (B) 범용 싱크 — 보간·연결 + SQL 키워드가 함께 보일 때만
+          - patterns:
+              - pattern-either:
+                  - pattern: $DB.query($Q, ...)
+                  - pattern: $DB.execute($Q, ...)
+                  - pattern: $DB.raw($Q, ...)
+              # (A) 와 이중 검출되지 않도록 raw 실행 API 는 여기서 제외한다.
+              - pattern-not: Prisma.raw(...)
+              - pattern-not: Prisma.sql(...)
+              - focus-metavariable: $Q
+              # 조립 흔적(보간·연결)과 SQL 키워드를 한 정규식 안에서 함께 요구한다.
+              # 두 조건을 pattern-either + pattern-regex 로 나누면 semgrep 이 두 매치의
+              # 범위 교집합을 요구해, 조립 흔적과 키워드가 떨어져 있는 문자열이 누락된다.
+              - metavariable-pattern:
+                  metavariable: $Q
+                  pattern-regex: '(?is)^(?=[\s\S]*(?:`[^`]*\$\{|["''][^"'']*["'']\s*\+|\+\s*["'']))[\s\S]*\b(?:select\s|insert\s+into\b|update\b[\s\S]*\bset\b|delete\s+from\b|merge\s+into\b|create\s+(?:table|schema|database|user)\b|drop\s+(?:table|schema|database)\b|alter\s+table\b|truncate\s+table\b|grant\s|from\s|where\s)'
+
+  # 하드코드된 암호화 키·IV·salt, IV 없는 deprecated 암호 API (CWE-321).
+  #
+  # 한계(의도적): IV 가 "문자열 리터럴"이거나 아예 없는 경우만 본다. 테이블명 같은
+  # 고정 상수에서 결정론적으로 파생한 IV(예: 이름을 16자로 자르거나 패딩)나 전역 단일 IV
+  # 재사용은 이 룰로 잡히지 않는다 — 값 흐름 추적이 필요해 정적 정규식 범위를 벗어난다.
+  # 그 경우는 별도 IV 재사용 룰이 필요하며 이 룰의 근거로 삼지 않는다.
+  - id: finguard.ts.hardcoded-crypto-material
+    languages: [regex]
+    severity: ERROR
+    message: 암호화 키·IV·salt 가 소스에 하드코드되어 있거나, IV 없는 deprecated 암호 API(createCipher)를 사용하고 있습니다. 소스 유출 시 암호화가 그대로 무력화됩니다. 키는 보호 저장소에서 로드하고 IV·salt 는 매번 안전한 난수로 생성해야 합니다.
+    metadata:
+      cwe: "CWE-321"
+      category: security
+    paths:
+      include: ["*.ts", "*.tsx", "*.js", "*.jsx"]
+      exclude: ["*.test.ts", "*.spec.ts", "*.test.js", "*.spec.js"]
+    pattern-regex: '(?im)^(?![ \t]*(?://|\*|/\*))(?:\s*(?:export\s+)?(?:const|let|var|readonly|static|private|public|protected)\s+(?:\w*(?:crypto|aes|enc|encrypt|cipher|hmac|sign)_?(?:key|iv|salt)\w*|iv|salt|nonce|initvector|init_vector)\s*(?::\s*[\w<>?.\[\]|]+)?\s*=\s*["''`][A-Za-z0-9+/=_-]{7,}["''`]|.*\bcreateCipher\s*\(|.*\bcreate(?:Cipher|Decipher)iv\s*\([^)]*,\s*["''`][^"''`]{4,}["''`]\s*\))'
+
+  # 취약한 암호 알고리즘 (CWE-327) — go.weak-crypto / python.weak-hash 의 TS 대응.
+  - id: finguard.ts.weak-crypto
+    languages: [regex]
+    severity: WARNING
+    message: MD5/SHA-1/DES/RC4/ECB 등 취약한 암호·해시 알고리즘을 사용하고 있습니다. SHA-256 이상, AES-GCM 등으로 교체해야 합니다.
+    metadata:
+      cwe: "CWE-327"
+      category: security
+    paths:
+      include: ["*.ts", "*.tsx", "*.js", "*.jsx"]
+    pattern-regex: '(?im)^(?![ \t]*(?://|\*|/\*)).*(?:create(?:Hash|Hmac)\s*\(\s*["''`](?:md5|md4|sha1|sha-1)["''`]|create(?:Cipher|Decipher)iv\s*\(\s*["''`][^"''`]*(?:ecb|-des|des-|rc4|rc2)[^"''`]*["''`]|["''`](?:aes-\d+-ecb|des-ede3|des3|rc4)["''`])'
+
+  # 예측 가능한 난수로 보안값 생성 (CWE-338).
+  # 이름 조건 필수 — 화면용 ID·애니메이션 지연 등 비보안 용도의 Math.random 오탐을 막는다.
+  # crypto.randomBytes/randomUUID/getRandomValues 는 애초에 매칭되지 않는다.
+  #
+  # 한계(의도적): 식별자에 보안 어휘가 전혀 없는 자격증명 생성기
+  # (예: `const alphaNumeric = (n) => ... randint(...)` 를 비밀번호 생성에 쓰는 코드)는
+  # 잡지 못한다. 이름 조건을 풀면 화면용 난수 전부가 오탐이 되어 도구를 못 쓰게 된다.
+  - id: finguard.ts.insecure-random
+    languages: [regex]
+    severity: ERROR
+    message: 보안값(키·토큰·OTP·salt·IV·세션ID 등)을 예측 가능한 난수로 생성하고 있습니다. Math.random 계열은 암호학적으로 안전하지 않습니다. crypto.randomBytes/randomUUID/getRandomValues 를 사용해야 합니다.
+    metadata:
+      cwe: "CWE-338"
+      category: security
+    paths:
+      include: ["*.ts", "*.tsx", "*.js", "*.jsx"]
+      exclude: ["*.test.ts", "*.spec.ts", "*.test.js", "*.spec.js"]
+    # iv·seed·salt·nonce 는 부분문자열로 쓰면 drive·receive·assert 같은 흔한 식별자를
+    # 통째로 먹으므로 완전 단어로만 본다. 나머지 어휘는 합성 식별자(otpCode·apiToken)를
+    # 잡아야 해 부분문자열 매칭을 유지한다.
+    pattern-regex: '(?im)^(?![ \t]*(?://|\*|/\*)).*(?:\b(?:iv|seed|salt|nonce)\b|\b\w*(?:token|password|passwd|secret|apikey|api_key|privatekey|secretkey|seckey|sessionkey|cryptokey|encryptkey|otp)\w*\b)[^\n]*?\b(?:Math\.random\s*\(|randint\s*\(|_\.random\s*\(|lodash\.random\s*\()'
+
+  # TLS 인증서 검증 비활성화 (CWE-295) — python.tls-verify-disabled / go.tls-skip-verify 의 TS 대응.
+  # https.createServer 의 mTLS-optional 구성에서는 rejectUnauthorized:false 의 의미가 다르지만,
+  # 미탐 비용이 더 커 감수한다(수동 확인 대상).
+  - id: finguard.ts.tls-verify-disabled
+    languages: [regex]
+    severity: ERROR
+    message: TLS 서버 인증서 검증을 비활성화하고 있습니다. 중간자 공격(MITM)에 그대로 노출됩니다. 사설 CA 는 검증을 끄는 대신 CA 인증서를 신뢰 목록에 추가해야 합니다.
+    metadata:
+      cwe: "CWE-295"
+      category: security
+    paths:
+      include: ["*.ts", "*.tsx", "*.js", "*.jsx"]
+    pattern-regex: '(?im)^(?![ \t]*(?://|\*|/\*)).*(?:rejectUnauthorized\s*:\s*false|strictSSL\s*:\s*false|insecureSkipTLSVerify\s*:\s*true|NODE_TLS_REJECT_UNAUTHORIZED["'']?\]?\s*=\s*["'']?0|checkServerIdentity\s*:\s*(?:\([^)]*\)|\w+)\s*=>\s*(?:undefined|null|\{\s*\}))'
