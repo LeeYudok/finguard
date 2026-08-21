@@ -27,5 +27,6 @@ export function vulnerableTemplate(source: string, options: TemplateOptions) {
   }`;
 
   // FIN-INJ-001 이 검출해야 하는 지점
+  // EXPECT: finguard.ts.eval
   return new Function(...importsKeys, `return ${compiledFunction}`)(...importValues);
 }
