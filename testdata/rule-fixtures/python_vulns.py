@@ -26,6 +26,14 @@ LEDGER_ENCRYPTION_KEY = "8f2b41c7d90e5a63b18c47f2e0d95a31"
 # EXPECT: finguard.python.hardcoded-secret
 KEYSTORE_PASSPHRASE = "Vault-Store-2026-Qz73"
 
+# 1-2) 재현율 고정 (#23) — 한글 혼합 실비밀번호는 계속 발화해야 한다.
+#      "값에 한글 + ASCII 8연속 없으면 억제"(원안 (b))는 국내 실비밀번호 최빈형을
+#      통째로 죽이므로 폐기했고, 그 결정을 아래 픽스처로 고정한다.
+# EXPECT: finguard.python.hardcoded-secret
+DB_PASSWORD = "금융보안1234!"
+# EXPECT: finguard.python.hardcoded-secret
+MAIL_PASSWORD = "한국은행2026!"
+
 
 # 2) finguard.python.weak-hash — MD5 로 비밀번호 해시를 생성한다.
 def hash_password(password: str) -> str:

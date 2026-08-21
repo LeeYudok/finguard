@@ -66,6 +66,21 @@ rules:
           - pattern-regex: '\bAIza[0-9A-Za-z_-]{35}\b'
       # 마스킹 플레이스홀더는 시크릿이 아니다 — 오히려 가리는 코드다
       - pattern-not-regex: '(?i)["''`](\*{3,}|x{3,}|•{3,}|\.{4,}|#{3,}|_{4,}|redacted|<[^>]*redact[^>]*>|change[_-]?me|placeholder|dummy|your[_-][\w-]*|todo|fixme)["''`]|[:=]\s*(\*{3,}|•{3,}|#{3,})(?![\w-])'
+      # 값 전체가 플레이스홀더인 unquoted 스칼라도 억제한다 (#23).
+      # 따옴표를 optional 로 푸는 대신 값 경계(줄 끝)로 앵커해 "값 전체가 플레이스홀더"라는
+      # 원래 의미를 보존한다 — 무앵커 부분일치로 바꾸면 실키 안의 우연한 xxx·todo 까지 억제된다.
+      - pattern-not-regex: '(?im)^[ \t]*(?:export[ \t]+)?(-[ \t]+)?["'']?[\w.-]+["'']?[ \t]*[:=][ \t]*["''`]?(\*{3,}|x{3,}|•{3,}|\.{4,}|#{3,}|_{4,}|redacted|change[_-]?me|placeholder|dummy|your[_-][\w-]*|todo|fixme)["''`]?[ \t]*[,;)]*[ \t]*(?:#.*|//.*)?$'
+      # 국내 샘플 코드의 표준 관용구인 한국어 안내문은 시크릿이 아니라 입력 지시문이다 (#23).
+      - pattern-not-regex: '(?im)^[^\n]*[:=][ \t]*["''`]?[^"''`\n]*(입력[ \t]*(?:하세요|해[ \t]*주세요|해주세요|바랍니다|하십시오)|여기에?[ \t]*입력|발급[ \t]*받은|본인의|자신의|예시|샘플)[^\n]*$'
+      # 값 전체가 CONSTANT_CASE 인 스칼라는 시크릿이 아니라 상수명·자리표시자다 (#23).
+      # python·java·kotlin·go·ts 룰은 이미 같은 negative 를 pattern-regex 안의 lookahead 로
+      # 갖고 있는데 config 룰에만 없었다 — 정합성 보정이다. 트레일링은 개행을 삼키지 않도록
+      # \s* 가 아니라 [ \t]* 로 둔다.
+      #   한계: `jwt.secret: MY_SUPER_SECRET_KEY_2026` 처럼 가독성 문구를 실제 HMAC 시크릿으로
+      #   쓰는 사각지대가 언어 룰과 동일하게 config 로도 확대된다.
+      #   대소문자 무시 플래그를 켜면 안 된다 — (?i) 아래에서는 [A-Z] 가 소문자까지 먹어
+      #   `secret-key: test_sk_...` 같은 실키를 CONSTANT_CASE 로 오인해 억제한다(실측).
+      - pattern-not-regex: '(?m)^[ \t]*["'']?[\w.-]+["'']?[ \t]*[:=][ \t]*["'']?(?:[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+)["'']?[ \t]*(?:#.*)?$'
       # pattern-not-regex 는 검출 범위를 "포함"할 때만 억제된다(semgrep 1.169.0 실측).
       # 값 부분만 매칭하는 정규식은 필터로 동작하지 않으므로 아래 억제 패턴은 줄 전체를 잡는다.
       #
@@ -127,6 +142,12 @@ rules:
       - pattern-not-regex: '(?im)^\s*["'']?(MYSQL_ROOT_PASSWORD|MONGO_INITDB_ROOT_PASSWORD|SA_PASSWORD)["'']?\s*[:=].*$'
       # 마스킹 플레이스홀더
       - pattern-not-regex: '(?i)["''`](\*{3,}|x{3,}|•{3,}|\.{4,}|#{3,}|_{4,}|redacted|<[^>]*redact[^>]*>|change[_-]?me|placeholder|dummy|your[_-][\w-]*|todo|fixme)["''`]|[:=]\s*(\*{3,}|•{3,}|#{3,})(?![\w-])'
+      # 값 전체가 플레이스홀더인 unquoted 스칼라도 억제한다 (#23).
+      # 따옴표를 optional 로 푸는 대신 값 경계(줄 끝)로 앵커해 "값 전체가 플레이스홀더"라는
+      # 원래 의미를 보존한다 — 무앵커 부분일치로 바꾸면 실키 안의 우연한 xxx·todo 까지 억제된다.
+      - pattern-not-regex: '(?im)^[ \t]*(?:export[ \t]+)?(-[ \t]+)?["'']?[\w.-]+["'']?[ \t]*[:=][ \t]*["''`]?(\*{3,}|x{3,}|•{3,}|\.{4,}|#{3,}|_{4,}|redacted|change[_-]?me|placeholder|dummy|your[_-][\w-]*|todo|fixme)["''`]?[ \t]*[,;)]*[ \t]*(?:#.*|//.*)?$'
+      # 국내 샘플 코드의 표준 관용구인 한국어 안내문은 시크릿이 아니라 입력 지시문이다 (#23).
+      - pattern-not-regex: '(?im)^[^\n]*[:=][ \t]*["''`]?[^"''`\n]*(입력[ \t]*(?:하세요|해[ \t]*주세요|해주세요|바랍니다|하십시오)|여기에?[ \t]*입력|발급[ \t]*받은|본인의|자신의|예시|샘플)[^\n]*$'
       - pattern-not-regex: '(?im)^\s*["'']?[\w.-]+["'']?\s*[:=]\s*["'']?(true|false|null|none|nil|yes|no|on|off|required|optional|string|integer|boolean|object|array|number)["'']?\s*(#.*)?$'
       # 시크릿 저장소 참조는 시크릿이 아니라 올바른 사용법이다
       - pattern-not-regex: '(?im)^\s*["'']?[\w.-]+["'']?\s*[:=]\s*["'']?(\$|\{\{|<%|%\(|env:|secretKeyRef|valueFrom|vault:|aws:|arn:).*$'
