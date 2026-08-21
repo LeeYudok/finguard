@@ -43,6 +43,13 @@ rules:
       exclude: ["**/build/**", "**/DerivedData/**", "**/*.xcframework/**"]
     pattern-regex: '(?im)^(?![ \t]*(?://|\*|/\*)).*"ws://(?!localhost|127\.0\.0\.1|0\.0\.0\.0|schemas\.|xmlns|(?:www\.)?w3\.org|(?:[\w.]+\.)?apache\.org|[\w.]*xml\.org|java\.sun\.com|(?:www\.)?example\.(?:com|org)|(?:www\.)?unicode\.org|(?:www\.)?jflex\.de|purl\.org|iana\.org|ietf\.org|slf4j\.org|json-schema\.org)[^"]+"'
 
+  # UserDefaults 평문 저장 (#31).
+  # 'UserDefaults ... .set(... 민감어휘)' 를 한 줄에서 요구하면 Swift 관용구인
+  # @propertyWrapper 에서 매칭이 끊긴다 — 저장 메커니즘(UserDefaults.standard.set)은
+  # 래퍼 선언부에 있고 키 이름은 사용부에 있어 두 줄이 서로 다른 파일일 수도 있다.
+  # 그래서 '키 이름에 민감 어휘가 있는 사용부' 를 별도 대안으로 본다.
+  # 저장 메커니즘 선언부(UserDefaults.standard.set 단독)는 잡지 않는다 — 래퍼가 무엇을
+  # 담는지 그 줄만 봐서는 알 수 없어 오탐 폭탄이 된다.
   - id: finguard.swift.userdefaults-sensitive
     languages: [regex]
     severity: ERROR
@@ -50,7 +57,12 @@ rules:
     paths:
       include: ["*.swift"]
       exclude: ["**/build/**", "**/DerivedData/**", "**/*.xcframework/**"]
-    pattern-regex: '(?i)UserDefaults[^\n]*\.set\([^\n]*(password|passwd|token|secret|pin|cardno|card_no|accountno)'
+    pattern-either:
+      - pattern-regex: '(?i)UserDefaults[^\n]*\.set\([^\n]*(password|passwd|token|secret|pin|cardno|card_no|accountno)'
+      # UserDefaults 를 감싸는 커스텀 propertyWrapper 의 사용부 (@UserDefault/@Storage/@UserInfo …)
+      - pattern-regex: '(?i)@\w*(?:UserDefault|Storage|Preference|UserInfo)\w*\s*\(\s*key\s*:\s*[^)\n]*(?:password|passwd|secret|token|pin|accesskey|secretkey|credential)'
+      # SwiftUI 표준 UserDefaults 래퍼 — 키를 첫 인자로 직접 받는다
+      - pattern-regex: '(?i)@AppStorage\s*\(\s*"[^"\n]*(?:password|passwd|secret|token|pin|accesskey|secretkey|credential)'
 
   - id: finguard.swift.uiwebview
     languages: [regex]
