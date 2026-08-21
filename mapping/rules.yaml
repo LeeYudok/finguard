@@ -1291,3 +1291,104 @@
     # 올바른 예 — TLS 적용
     url = "wss://ops.example.com:21000"
     ```
+
+# ── Kotlin 서버(Spring Boot) 룰 (#28) ────────────────────────────────────────
+# basis·kisa_item 은 같은 CWE 의 기존 엔트리 값을 그대로 승계한다. 승계할 기존
+# 엔트리가 없는 항목(CWE-489·CWE-209)의 kisa_item 은 FIN-AND-001 과 같이 비워 둔다 —
+# 감사 대응 자료이므로 근거를 지어내지 않는다.
+
+- rule_id: finguard.kotlin.feign-full-logging
+  code: FIN-LOG-004
+  cwe: CWE-532
+  title: 로그 중요정보 노출(Feign 전체 로깅)
+  severity: WARNING
+  basis: 개발보안가이드 「에러처리 - 오류 메시지 정보노출」
+  kisa_item: "전자금융기반시설 평가기준(2026) 웹·모바일·HTS 59 (디버그 로그 내 중요정보 노출 방지)"
+  explain: Feign 로깅 레벨이 FULL(또는 HEADERS)이면 요청·응답의 헤더와 본문이 통째로 로그에 남습니다. PG·오픈뱅킹 연동 클라이언트에서는 Authorization 헤더와 결제 응답 본문이 그대로 흘러 들어갑니다.
+  fix_example: |
+    ```kotlin
+    // 운영 프로파일은 BASIC 이하로. 본문·헤더는 남기지 않는다.
+    @Bean
+    fun feignLoggerLevel(): Logger.Level = Logger.Level.BASIC
+    ```
+
+- rule_id: finguard.kotlin.dev-backdoor-endpoint
+  code: FIN-DBG-001
+  cwe: CWE-489
+  title: 개발용 인증 우회 엔드포인트 잔존(Kotlin)
+  severity: ERROR
+  basis: 개발보안가이드 「캡슐화 - 제거되지 않고 남은 디버그 코드」
+  kisa_item: ""
+  explain: 개발·로컬 전용 로그인/토큰 발급 엔드포인트가 소스에 남아 있습니다. 운영 배포본에 함께 나가면 정상 인증 절차를 우회해 임의 계정의 토큰을 발급받을 수 있습니다.
+  fix_example: |
+    ```kotlin
+    // 개발 전용 컨트롤러는 프로파일로 격리해 운영 컨텍스트에 등록되지 않게 한다
+    @Profile("local", "dev")
+    @RestController
+    class LocalLoginController { /* ... */ }
+    ```
+
+- rule_id: finguard.kotlin.stacktrace-exposure
+  code: FIN-LOG-005
+  cwe: CWE-209
+  title: 스택트레이스 노출(Kotlin)
+  severity: WARNING
+  basis: 개발보안가이드 「에러처리 - 오류 메시지 정보노출」
+  kisa_item: ""
+  explain: printStackTrace 는 예외 내부 구조(쿼리문·파일 경로·라이브러리 버전)를 표준에러로 직접 출력해 로깅 파이프라인의 마스킹·보존 정책을 우회합니다. 로거로 보내고 사용자 응답에는 내부 정보를 포함하지 않아야 합니다.
+  fix_example: |
+    ```kotlin
+    } catch (e: MessagingException) {
+        log.warn("메일 발송 실패: {}", e.javaClass.simpleName)  // 스택은 로거에만
+        throw MailSendFailedException()
+    }
+    ```
+
+- rule_id: finguard.kotlin.path-traversal
+  code: FIN-PATH-006
+  cwe: CWE-22
+  title: 경로 조작 및 자원 삽입(Kotlin)
+  severity: ERROR
+  basis: 개발보안가이드 「입력데이터 검증 및 표현 - 경로 조작 및 자원 삽입」
+  kisa_item: "전자금융기반시설 평가기준(2026) 웹·모바일·HTS 28 (파일 다운로드)"
+  explain: 외부 입력이 검증 없이 파일 경로로 사용되어 기준 디렉터리 밖의 파일에 접근할 수 있습니다.
+  fix_example: |
+    ```kotlin
+    val safeName = File(requested).name              // basename 만 취한다
+    val base = File("/data/statements").canonicalFile
+    val target = File(base, safeName).canonicalFile
+    require(target.toPath().startsWith(base.toPath())) { "경로 이탈" }
+    ```
+
+- rule_id: finguard.kotlin.ssrf
+  code: FIN-SSRF-004
+  cwe: CWE-918
+  title: 서버측 요청 위조(Kotlin)
+  severity: WARNING
+  basis: 개발보안가이드 「입력데이터 검증 및 표현 - 서버사이드 요청 위조」
+  kisa_item: "전자금융기반시설 평가기준(2026) 웹·모바일·HTS 61 (서버 사이드 요청 위조 (SSRF))"
+  explain: 외부 입력이 서버가 호출할 URL 로 사용되어 내부망 자원에 접근될 수 있습니다.
+  fix_example: |
+    ```kotlin
+    val u = URL(target)
+    require(u.host in ALLOWED_HOSTS) { "허용되지 않은 호스트" }
+    u.readText()
+    ```
+
+- rule_id: finguard.kotlin.open-redirect
+  code: FIN-REDIR-004
+  cwe: CWE-601
+  title: 검증되지 않은 리다이렉트(Kotlin)
+  severity: WARNING
+  basis: 개발보안가이드 「입력데이터 검증 및 표현 - 신뢰되지 않는 URL 주소로 자동접속 연결」
+  kisa_item: "전자금융기반시설 평가기준(2026) 웹·모바일·HTS 34 (리다이렉트 기능을 이용한 피싱 공격)"
+  explain: 외부 입력이 리다이렉트 대상 URL 로 사용되어 피싱 사이트로 유도될 수 있습니다.
+  fix_example: |
+    ```kotlin
+    val dest = when (next) {
+        "home" -> "/home"
+        "mypage" -> "/mypage"
+        else -> "/home"
+    }
+    response.sendRedirect(dest)
+    ```
