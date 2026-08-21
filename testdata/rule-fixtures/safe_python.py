@@ -23,6 +23,10 @@ SECRET_PLACEHOLDER = "changeme"
 key = "Authorization-Bearer-Header"
 sort_key = "settlement_date_desc"
 cache_key = "user:1234:profile:v2"
+# 국내 샘플 코드의 표준 관용구인 한국어 안내문은 입력 지시문이지 시크릿이 아니다 (#23).
+g_appsecret = '앱 시크릿키를 입력하세요'
+g_api_key = '발급받은 키를 여기에 입력하세요'
+DEFAULT_PASSWORD = "본인의 비밀번호를 입력해 주세요"
 
 
 # 2) finguard.python.weak-hash — 비보안 용도(체크섬)로 명시한 MD5 는 대상이 아니다.

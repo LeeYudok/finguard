@@ -119,6 +119,12 @@ rules:
       - pattern-regex: '(?i)String\s+\w*(password|passwd|pwd|secret|api[_-]?key|access[_-]?token|refresh[_-]?token|auth[_-]?token|credential|passphrase|private[_-]?key|signing[_-]?key|encrypt(?:ion)?[_-]?key|master[_-]?key|aes[_-]?key|hmac[_-]?key)\w*\s*=\s*"(?!(?-i:[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+)")(?!(?-i:[a-z]+(?:_[a-z]+)+)")[^"]{4,}"'
       # 마스킹 플레이스홀더는 시크릿이 아니다 — 오히려 가리는 코드다
       - pattern-not-regex: '(?i)["''`](\*{3,}|x{3,}|•{3,}|\.{4,}|#{3,}|_{4,}|redacted|<[^>]*redact[^>]*>|change[_-]?me|placeholder|dummy|your[_-][\w-]*|todo|fixme)["''`]|[:=]\s*(\*{3,}|•{3,}|#{3,})(?![\w-])'
+      # 값 전체가 플레이스홀더인 unquoted 스칼라도 억제한다 (#23).
+      # 따옴표를 optional 로 푸는 대신 값 경계(줄 끝)로 앵커해 "값 전체가 플레이스홀더"라는
+      # 원래 의미를 보존한다 — 무앵커 부분일치로 바꾸면 실키 안의 우연한 xxx·todo 까지 억제된다.
+      - pattern-not-regex: '(?im)^[ \t]*(?:export[ \t]+)?(-[ \t]+)?["'']?[\w.-]+["'']?[ \t]*[:=][ \t]*["''`]?(\*{3,}|x{3,}|•{3,}|\.{4,}|#{3,}|_{4,}|redacted|change[_-]?me|placeholder|dummy|your[_-][\w-]*|todo|fixme)["''`]?[ \t]*[,;)]*[ \t]*(?:#.*|//.*)?$'
+      # 국내 샘플 코드의 표준 관용구인 한국어 안내문은 시크릿이 아니라 입력 지시문이다 (#23).
+      - pattern-not-regex: '(?im)^[^\n]*[:=][ \t]*["''`]?[^"''`\n]*(입력[ \t]*(?:하세요|해[ \t]*주세요|해주세요|바랍니다|하십시오)|여기에?[ \t]*입력|발급[ \t]*받은|본인의|자신의|예시|샘플)[^\n]*$'
 
   # 취약 해시 (CWE-328).
   #   - MessageDigest/Mac 직접 호출 외에, 알고리즘명을 문자열로 받는 사내 래퍼

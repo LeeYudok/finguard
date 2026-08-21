@@ -30,3 +30,17 @@ masked:
   password: "********"
   api_key: "your-api-key"
   client_secret: "CHANGE_ME"
+
+placeholder_unquoted:
+  # 따옴표 없는 스칼라 플레이스홀더 — 값 경계 앵커로 억제한다 (#23)
+  password: placeholder
+  api_key: your-api-key
+  client-secret: DUMMY_LOCAL_SECRET
+  signing_key: TODO
+
+korean_guidance:
+  # 국내 샘플 코드의 표준 관용구 — 입력 지시문이지 시크릿이 아니다 (#23)
+  app_secret: 앱 시크릿키를 입력하세요
+  api_key: 여기에 발급받은 키를 입력해 주세요
+  password: 본인의 비밀번호를 입력하세요
+  access_token: 예시 값입니다
