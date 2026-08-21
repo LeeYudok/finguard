@@ -1,0 +1,12 @@
+# 커밋된 개인키 회귀 픽스처 (#73).
+# 확장자 없이 key/ 디렉터리에 놓인 형태 — 실제 은행 앱 레포에서 발견된 배치를 모사한다.
+# 아래 본문은 합성 더미 base64 다(실제 키가 아니다).
+# EXPECT: finguard.config.private-key-file
+-----BEGIN RSA PRIVATE KEY-----
+MIIBOgIBAAJBAKj34GkxFhD90vcNLYLInFEX6Ppy1tPf9Cnzj4p4WGeKLs1Pt8Qu
+KUpRKfFLfRYC9AIKjbJTWit+CqvjWYzvQwECAwEAAQJAIJLixBy2qpFoS4DSmoEm
+o3qGy0t6z09AIJtH+5OeRV1be+N4cDYJKffGzDa88vQENZiRm0GRq6a+HPGQMd2k
+TQIhAKMSvzIBnni7ot/OSie2TmJLY4SwTQAevXysE2RbFDYdAiEBCUEaRQnMnbp7
+9Mxj6N6ju3WYCLtIJ7WkjPRMY8/dHFUCIQCbCmr2nOR+ihaCFEsGZeGWPEfDMzMx
+xVJEHu2SNRMBQwIgQXqmCYRpjHhTS2yJ9K4tNwCCIkVDX0oPCT7ZWv3wUZUCIQCT
+-----END RSA PRIVATE KEY-----

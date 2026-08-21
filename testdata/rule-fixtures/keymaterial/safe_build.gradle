@@ -1,0 +1,27 @@
+// 대조군 (#73) — 서명 설정이 전부 외부 주입 형태다. 어떤 룰에도 걸리면 안 된다.
+
+apply plugin: 'com.android.application'
+
+def keystoreProps = new Properties()
+
+android {
+    compileSdkVersion 34
+
+    signingConfigs {
+        release {
+            storeFile file(System.getenv("KEYSTORE_PATH"))
+            storePassword System.getenv("KEYSTORE_PASSWORD")
+            keyAlias System.getenv("KEY_ALIAS")
+            keyPassword System.getenv("KEY_PASSWORD")
+        }
+        staging {
+            storeFile rootProject.file(keystoreProps['storeFile'])
+        }
+    }
+
+    buildTypes {
+        release {
+            signingConfig signingConfigs.release
+        }
+    }
+}
