@@ -1682,3 +1682,23 @@
       level:
         com.example.outer.api.tossPayments: debug
     ```
+
+# ── 공용 crypto 래퍼 경유 취약 알고리즘 — Java (#34) ─────────────────────────
+# basis·kisa_item 은 같은 CWE(327) 기존 엔트리 FIN-CRY-005 값을 문자열 그대로 승계한다.
+# finguard.java.weak-hash 확장분은 기존 FIN-CRY-004 엔트리를 그대로 쓴다(신규 매핑 없음).
+
+- rule_id: finguard.java.weak-cipher-wrapper
+  code: FIN-CRY-015
+  cwe: CWE-327
+  title: 취약한 암호 알고리즘(공용 래퍼 경유·알고리즘 상수, Java)
+  severity: WARNING
+  basis: 개발보안가이드 「보안기능 - 취약한 암호화 알고리즘 사용」
+  kisa_item: "전자금융기반시설 평가기준(2026) 웹·모바일·HTS 52 (취약한 HTTPS 암호 알고리즘 이용)"
+  explain: DES·3DES·RC4·Blowfish 알고리즘 이름이 암·복호화 함수의 인자 또는 알고리즘 상수로 지정돼 있습니다. 공용 CryptUtil 등 래퍼를 경유하더라도 내부에서 그 알고리즘이 실제로 사용됩니다. 함수명 어휘와 알고리즘 리터럴로 판정하는 휴리스틱이므로, 해당 상수·인자가 실제 암호 연산에 쓰이는지 확인한 뒤 AES/GCM 등 인증 암호로 교체해야 합니다.
+  fix_example: |
+    ```java
+    // 알고리즘을 상수로 빼더라도 값 자체를 인증 암호로 교체한다.
+    private static final String CIPHER_ALGORITHM = "AES/GCM/NoPadding";
+
+    Cipher cipher = Cipher.getInstance(CIPHER_ALGORITHM);
+    ```
