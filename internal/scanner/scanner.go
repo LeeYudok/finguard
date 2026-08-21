@@ -5,7 +5,9 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"os"
 	"os/exec"
+	"path/filepath"
 )
 
 // Semgrep 은 목(mock) 가능하도록 인터페이스로 둔다.
@@ -32,10 +34,41 @@ func scanArgs(rulesPath, targetDir string, excludes []string) []string {
 	return append(args, targetDir)
 }
 
+// semgrepIgnoreBody 는 스캔 대상 루트에 심는 `.semgrepignore` 내용이다.
+//
+// semgrep 은 대상 루트에 `.semgrepignore` 가 없으면 **내장 기본 무시목록**을 쓰는데,
+// 거기에 `test/`·`tests/`·`*_test.go` 가 들어 있다 (semgrep 1.169.0 실측). 그 결과
+// `src/test/java/**` 같은 경로가 룰의 paths 설정과 무관하게 조용히 사라진다 —
+// 테스트 코드에 복붙된 실키를 보겠다는 #25 의 룰이 통째로 무효화되는 경로다.
+//
+// 제외 정책은 finguard 가 `--exclude`(DefaultExcludes)와 `.finguard.yml` 로 이미
+// 소유하고 있으므로, 여기서는 아무것도 무시하지 않는 파일을 심어 내장 기본값을 대체한다.
+// 레포가 자기 `.semgrepignore` 를 갖고 있으면 그쪽 의도를 존중해 건드리지 않는다.
+const semgrepIgnoreBody = `# finguard 가 생성한 파일 (#25).
+# semgrep 내장 기본 무시목록(test/·tests/·*_test.go 포함)을 대체한다.
+# 제외 경로는 finguard 의 --exclude 와 .finguard.yml 의 ignore 가 담당한다.
+`
+
+// ensureSemgrepIgnore 는 대상 루트에 `.semgrepignore` 가 없을 때만 생성한다.
+// 실패해도 스캔 자체는 계속한다 — 무시목록은 정확도 문제이지 중단 사유가 아니다.
+func ensureSemgrepIgnore(targetDir string) error {
+	p := filepath.Join(targetDir, ".semgrepignore")
+	if _, err := os.Stat(p); err == nil {
+		return nil
+	} else if !os.IsNotExist(err) {
+		return err
+	}
+	return os.WriteFile(p, []byte(semgrepIgnoreBody), 0o644)
+}
+
 func (c CLI) Scan(ctx context.Context, rulesPath, targetDir string) ([]Finding, error) {
 	bin := c.Bin
 	if bin == "" {
 		bin = "semgrep"
+	}
+	if err := ensureSemgrepIgnore(targetDir); err != nil {
+		// 경로·라인만 남기는 로깅 규약상 여기서는 조용히 진행한다.
+		_ = err
 	}
 	cmd := exec.CommandContext(ctx, bin, scanArgs(rulesPath, targetDir, DefaultExcludes)...)
 	var stdout, stderr bytes.Buffer

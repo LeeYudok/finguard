@@ -301,3 +301,26 @@ rules:
               ...
               os.open(..., 0o600)
               ...
+
+  # 테스트 코드에 복붙된 실키를 파일명으로 영원히 가리던 blanket exclude 를 걷어낸다 (#25).
+  #
+  #   - paths.include 는 기존 ERROR 룰의 exclude 와 **정확히 상호배타** 다. 같은 파일이 두 룰에
+  #     걸려 ERROR + WARNING 코멘트가 중복으로 달리지 않게 한다.
+  #   - severity 는 ERROR 를 유지한다. 파일명은 "운영 시크릿인가" 의 판정 근거가 아니고,
+  #     테스트 파일에 박힌 실키는 git 히스토리 노출 관점에서 운영 코드의 하드코드와 위험이 같다
+  #     (평가기준 43·23).
+  #   - 대신 값의 "시크릿다움" 게이트로 노이즈를 거른다. 게이트는 AND 가 아니라 **OR** 다 —
+  #     이슈 원안의 AND 게이트 `(?=[^"]*[A-Za-z])(?=[^"]*[0-9])[A-Za-z0-9+/=_.-]{20,}` 는
+  #     이 이슈의 헤드라인 증거인 16자리 **숫자** API 키를 스스로 못 잡는다(영문 없음·20자 미만).
+  #     순숫자 12자 이상 | base64/hex 계열 16자 이상 | 12자 이상 영문+숫자 혼합 중 하나면 통과.
+  - id: finguard.python.hardcoded-secret-test
+    languages: [regex]
+    severity: ERROR
+    message: 테스트 코드에 비밀정보(비밀번호·API 키·토큰)가 하드코드되어 있습니다. 저장소와 git 히스토리에 그대로 남으므로 운영 코드와 동일하게 제거·회전해야 합니다.
+    paths:
+      include: ["test_*.py", "*_test.py", "conftest.py"]
+    patterns:
+      - pattern-regex: '(?i)\b\w*(password|passwd|pwd|secret|api[_-]?key|access[_-]?token|refresh[_-]?token|auth[_-]?token|credential|passphrase|private[_-]?key|signing[_-]?key|encrypt(?:ion)?[_-]?key|master[_-]?key|aes[_-]?key|hmac[_-]?key)\w*\s*=\s*(?:"(?=[0-9]{12,}|[A-Za-z0-9+/=_.\-]{16,}|(?=[^"]{12,})(?=[^"]*[A-Za-z])(?=[^"]*[0-9]))(?!https?://)(?!jdbc:)(?!(?-i:[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+)")(?!(?-i:[a-z]+(?:_[a-z]+)+)")[^"%/{][^"]{7,}"|''(?=[0-9]{12,}|[A-Za-z0-9+/=_.\-]{16,}|(?=[^'']{12,})(?=[^'']*[A-Za-z])(?=[^'']*[0-9]))(?!https?://)(?!jdbc:)(?![A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+'')(?![a-z]+(?:_[a-z]+)+'')[^''%/{][^'']{7,}'')'
+      - pattern-not-regex: '(?i)["''`](\*{3,}|x{3,}|•{3,}|\.{4,}|#{3,}|_{4,}|redacted|<[^>]*redact[^>]*>|change[_-]?me|placeholder|dummy|your[_-][\w-]*|todo|fixme)["''`]|[:=]\s*(\*{3,}|•{3,}|#{3,})(?![\w-])'
+      - pattern-not-regex: '(?im)^[ \t]*(?:export[ \t]+)?(-[ \t]+)?["'']?[\w.-]+["'']?[ \t]*[:=][ \t]*["''`]?(\*{3,}|x{3,}|•{3,}|\.{4,}|#{3,}|_{4,}|redacted|change[_-]?me|placeholder|dummy|your[_-][\w-]*|todo|fixme)["''`]?[ \t]*[,;)]*[ \t]*(?:#.*|//.*)?$'
+      - pattern-not-regex: '(?im)^[^\n]*[:=][ \t]*["''`]?[^"''`\n]*(입력[ \t]*(?:하세요|해[ \t]*주세요|해주세요|바랍니다|하십시오)|여기에?[ \t]*입력|발급[ \t]*받은|본인의|자신의|예시|샘플)[^\n]*$'

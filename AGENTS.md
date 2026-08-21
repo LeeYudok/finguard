@@ -264,6 +264,11 @@ block_on: [ERROR, WARNING]
   마커 없는데 검출 = 오탐 회귀. 라인 번호를 테스트에 적지 않으므로 블록을 어디에 추가하든
   기대값이 따라 움직이고, 픽스처를 건드리는 PR 끼리 충돌하지 않는다.
 - 통합 테스트 실행: `go test -race -mod=vendor -tags semgrep_integration ./internal/scanner/`
+- 레포 루트의 **`.semgrepignore` 를 지우지 말 것** (#25). semgrep 은 이 파일이 없으면
+  내장 기본 무시목록을 쓰는데 거기에 `test/`·`tests/`·`*_test.go` 가 들어 있어,
+  `*_test.go`·`*Test.java` 픽스처와 `finguard.<lang>.hardcoded-secret-test` 룰이
+  룰 설정과 무관하게 통째로 사라진다. 운영 스캔에서는 `internal/scanner` 가 대상 루트에
+  같은 파일을 심는다(레포가 자기 것을 갖고 있으면 건드리지 않는다).
 
 ## 작업 방식
 

@@ -1,0 +1,14 @@
+# semgrep 내장 기본 무시목록을 대체한다 (#25).
+#
+# semgrep 은 프로젝트 루트에 이 파일이 없으면 내장 기본값을 쓰는데, 거기에
+# `test/`·`tests/`·`*_test.go` 가 들어 있다(1.169.0 실측). 그러면 테스트 코드를 겨냥한
+# 룰(finguard.<lang>.hardcoded-secret-test)과 그 회귀 픽스처
+# (testdata/rule-fixtures/*_test.go, *Test.java 등)가 룰 설정과 무관하게 통째로 사라진다.
+#
+# 운영 스캔에서는 internal/scanner 가 대상 레포 루트에 같은 목적의 파일을 심는다
+# (레포가 자기 .semgrepignore 를 갖고 있으면 건드리지 않는다).
+#
+# 아래는 이 레포에서 점검 대상이 아닌 경로만 남긴 최소 목록이다.
+# 테스트 경로는 절대 넣지 말 것.
+vendor/
+node_modules/

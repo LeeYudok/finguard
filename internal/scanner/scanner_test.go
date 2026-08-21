@@ -1,6 +1,8 @@
 package scanner
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -78,4 +80,47 @@ func countOf(ss []string, s string) int {
 		}
 	}
 	return n
+}
+
+// semgrep 내장 기본 무시목록이 test/·tests/·*_test.go 를 통째로 지우는 문제 때문에
+// 스캔 대상 루트에 .semgrepignore 를 심는다 (#25).
+func TestEnsureSemgrepIgnore(t *testing.T) {
+	dir := t.TempDir()
+
+	if err := ensureSemgrepIgnore(dir); err != nil {
+		t.Fatalf("생성 실패: %v", err)
+	}
+	got, err := os.ReadFile(filepath.Join(dir, ".semgrepignore"))
+	if err != nil {
+		t.Fatalf(".semgrepignore 가 생성되지 않았다: %v", err)
+	}
+	if !strings.Contains(string(got), "finguard") {
+		t.Errorf("finguard 가 생성했다는 표시가 없다: %q", string(got))
+	}
+	// 아무 경로도 무시하지 않아야 한다 — 제외 정책은 --exclude 와 .finguard.yml 소관이다.
+	for _, line := range strings.Split(string(got), "\n") {
+		s := strings.TrimSpace(line)
+		if s != "" && !strings.HasPrefix(s, "#") {
+			t.Errorf("무시 패턴이 들어 있다: %q", s)
+		}
+	}
+}
+
+// 레포가 자기 .semgrepignore 를 갖고 있으면 그쪽 의도를 존중해 덮어쓰지 않는다.
+func TestEnsureSemgrepIgnoreKeepsExisting(t *testing.T) {
+	dir := t.TempDir()
+	p := filepath.Join(dir, ".semgrepignore")
+	if err := os.WriteFile(p, []byte("generated/\n"), 0o644); err != nil {
+		t.Fatalf("사전 준비 실패: %v", err)
+	}
+	if err := ensureSemgrepIgnore(dir); err != nil {
+		t.Fatalf("실행 실패: %v", err)
+	}
+	got, err := os.ReadFile(p)
+	if err != nil {
+		t.Fatalf("읽기 실패: %v", err)
+	}
+	if string(got) != "generated/\n" {
+		t.Errorf("레포의 기존 .semgrepignore 를 덮어썼다: %q", string(got))
+	}
 }
