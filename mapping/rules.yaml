@@ -1464,4 +1464,53 @@
     ```ts
     // 사설 CA 는 검증을 끄는 대신 CA 인증서를 신뢰 목록에 추가한다
     const agent = new https.Agent({ ca: fs.readFileSync("/etc/ssl/internal-ca.pem") });
+
+- rule_id: finguard.python.cors-wildcard-credentials
+  code: FIN-CORS-001
+  cwe: CWE-942
+  title: 과도하게 허용된 교차출처 정책(CORS)
+  severity: ERROR
+  basis: 개발보안가이드 「보안기능 - 부적절한 인가」
+  kisa_item: ""
+  explain: |
+    허용 오리진을 와일드카드(*)로 두면서 자격증명(쿠키·Authorization 헤더) 동반 요청까지 허용하고 있습니다.
+    Starlette/FastAPI 의 CORSMiddleware 는 이 조합에서 Access-Control-Allow-Origin 에 "*" 를 그대로 내보내지 않고
+    요청 Origin 을 그대로 반향(echo)하면서 Access-Control-Allow-Credentials: true 를 붙입니다. "브라우저가
+    와일드카드와 자격증명의 조합을 거부하므로 무해하다" 는 통념과 달리, 이용자가 임의의 웹페이지를 방문하는 것만으로
+    그 페이지가 이용자의 세션을 실어 조회·주문 엔드포인트를 호출할 수 있습니다.
+    인증이 요청별 자격증명이 아니라 프로세스 전역 로그인 플래그로 구현된 서버라면 운영자가 한 번 로그인한 이후
+    모든 요청이 인증된 것으로 처리되므로 영향이 더 큽니다. 해당 서비스가 외부 인터페이스에 바인딩되어 있는지
+    (예: 0.0.0.0 바인딩), 인증이 요청 단위로 검증되는지도 함께 확인하십시오.
+  fix_example: |
+    ```python
+    ALLOWED_ORIGINS = ["https://desk.example.com"]
+
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=ALLOWED_ORIGINS,   # 와일드카드 금지 — 명시적 화이트리스트
+        allow_credentials=True,
+        allow_methods=["GET", "POST"],
+        allow_headers=["Authorization", "Content-Type"],
+    )
+    ```
+
+- rule_id: finguard.python.cors-wildcard-origin
+  code: FIN-CORS-002
+  cwe: CWE-942
+  title: 모든 출처를 허용한 교차출처 정책(CORS)
+  severity: WARNING
+  basis: 개발보안가이드 「보안기능 - 부적절한 인가」
+  kisa_item: ""
+  explain: |
+    허용 오리진이 와일드카드(*)로 설정되어 있습니다. 자격증명 동반 요청은 허용하지 않으므로 브라우저가 쿠키·인증
+    헤더를 싣지 않지만, 인증 없이 접근 가능한 엔드포인트의 응답은 임의 웹페이지가 읽을 수 있습니다.
+    공개 API 가 아니라면 허용 오리진을 명시적 화이트리스트로 제한해야 하며, 이후 자격증명 허용이 추가되면
+    즉시 심각한 취약점(FIN-CORS-001)이 됩니다. 해당 서비스가 외부 인터페이스에 바인딩되어 있는 경우 위험이 가중됩니다.
+  fix_example: |
+    ```python
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["https://desk.example.com"],   # 와일드카드 금지
+        allow_methods=["GET"],
+    )
     ```
