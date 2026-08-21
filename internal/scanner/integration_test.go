@@ -13,7 +13,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"regexp"
 	"sort"
 	"strings"
 	"testing"
@@ -29,20 +28,6 @@ func rulesDir(t *testing.T) string {
 	return p
 }
 
-// fixturesDir 는 룰 회귀 픽스처 디렉터리다.
-//
-// rules/ 바깥에 두는 것이 필수다 (#43) — semgrep 은 `--config <디렉터리>` 하위의 모든
-// .yml/.yaml 을 룰 파일로 재귀 파싱하므로, rules/ 안에 yaml 픽스처가 하나라도 있으면
-// 룰셋 전체가 "0 rule(s)" 로 로드 실패한다.
-func fixturesDir(t *testing.T) string {
-	t.Helper()
-	p, err := filepath.Abs("../../testdata/rule-fixtures")
-	if err != nil {
-		t.Fatalf("픽스처 경로 확인 실패: %v", err)
-	}
-	return p
-}
-
 func requireSemgrep(t *testing.T) {
 	t.Helper()
 	if _, err := exec.LookPath("semgrep"); err != nil {
@@ -50,77 +35,12 @@ func requireSemgrep(t *testing.T) {
 	}
 }
 
-// ── 기대값 마커 ──
-//
-// 픽스처는 검출이 기대되는 줄 **바로 위**에 마커 주석을 단다 (#44):
-//
-//	# EXPECT: finguard.python.cleartext-websocket
-//	REALTIME_FEED_URL = "ws://ops.example-broker.co.kr:21000"
-//
-// 기대값이 테스트가 아니라 픽스처 안에 있으므로 블록을 어디에 추가하든 따라 움직인다.
-// 라인 번호를 테스트에 하드코딩하던 구조는 픽스처를 건드리는 모든 PR 을 서로
-// 충돌시켰고, 병합 후 조용히 어긋나기까지 했다.
-var expectMarker = regexp.MustCompile(`(?:#|//)\s*EXPECT:\s*(\S+)\s*$`)
-
-// expectation 은 픽스처 한 줄에 기대되는 검출이다.
-type expectation struct {
-	file   string // 픽스처 파일의 베이스명
-	line   int    // 검출이 기대되는 줄 (마커 다음 줄)
-	ruleID string // 기대 룰 ID (semgrep 접두어 없는 suffix)
-}
-
-func (e expectation) String() string {
-	return e.file + ":" + itoa(e.line) + " " + e.ruleID
-}
-
-func itoa(n int) string {
-	if n == 0 {
-		return "0"
-	}
-	var b []byte
-	for n > 0 {
-		b = append([]byte{byte('0' + n%10)}, b...)
-		n /= 10
-	}
-	return string(b)
-}
-
-// parseExpectations 는 픽스처 디렉터리를 훑어 마커에서 기대 집합을 만든다.
-func parseExpectations(t *testing.T, dir string) map[expectation]bool {
-	t.Helper()
-	want := map[expectation]bool{}
-
-	entries, err := os.ReadDir(dir)
-	if err != nil {
-		t.Fatalf("픽스처 디렉터리 읽기 실패: %v", err)
-	}
-	for _, e := range entries {
-		if e.IsDir() {
-			continue
-		}
-		raw, err := os.ReadFile(filepath.Join(dir, e.Name()))
-		if err != nil {
-			t.Fatalf("픽스처 읽기 실패 %s: %v", e.Name(), err)
-		}
-		lines := strings.Split(string(raw), "\n")
-		for i, l := range lines {
-			m := expectMarker.FindStringSubmatch(l)
-			if m == nil {
-				continue
-			}
-			if i+1 >= len(lines) {
-				t.Errorf("%s:%d 마커가 파일 마지막 줄에 있어 대상 줄이 없다", e.Name(), i+1)
-				continue
-			}
-			// lines 는 0-based, 파일 라인은 1-based → 마커 다음 줄 = i+2
-			want[expectation{file: e.Name(), line: i + 2, ruleID: m[1]}] = true
-		}
-	}
-	if len(want) == 0 {
-		t.Fatal("픽스처에서 EXPECT 마커를 하나도 찾지 못했다 — 마커 문법이 깨졌거나 경로가 틀렸다")
-	}
-	return want
-}
+// 마커 문법(`expectMarkerRuleID`)과 픽스처 순회(`walkFixtures`·`parseExpectations`),
+// 그리고 대조군 검사(`TestSafeFixturesHaveNoExpectations`)는 빌드 태그가 없는
+// expect_marker_test.go 에 있다. 이 파일은 semgrep_integration 태그 뒤에 있어
+// 기본 `go test` 에서 컴파일되지 않으므로, 마커 문법을 여기 복제하면 양쪽이 어긋나도
+// 아무도 모른다 — 그 순간 이 테스트는 "기대 0건 · 검출 0건" 으로 조용히 통과한다
+// (#60·#61). 정의는 한 곳에만 두고, semgrep 이 필요한 검사만 여기 남긴다.
 
 // TestFixtureExpectationsMatchScan 은 픽스처 마커와 실제 스캔 결과가 정확히 일치하는지 본다.
 //
@@ -145,7 +65,8 @@ func TestFixtureExpectationsMatchScan(t *testing.T) {
 		if i := strings.LastIndex(id, "finguard."); i >= 0 {
 			id = id[i:]
 		}
-		got[expectation{file: filepath.Base(f.Path), line: f.StartLine, ruleID: id}] = true
+		// f.Path 는 ParseSARIF 가 스캔 루트(= 픽스처 루트) 기준 상대경로로 만들어 준다.
+		got[expectation{file: filepath.ToSlash(f.Path), line: f.StartLine, ruleID: id}] = true
 	}
 
 	var missing, unexpected []string
@@ -170,32 +91,6 @@ func TestFixtureExpectationsMatchScan(t *testing.T) {
 	}
 
 	t.Logf("기대 %d건 · 검출 %d건 · 전부 일치", len(want), len(got))
-}
-
-// TestSafeFixturesHaveNoExpectations 는 safe_ 접두 픽스처가 마커를 갖지 않음을 강제한다.
-//
-// safe_* 는 "어떤 룰에도 걸리면 안 되는" 대조군이다. 여기에 마커가 생기면 위 테스트가
-// 그 검출을 정당한 것으로 받아들여 대조군의 의미가 사라진다.
-func TestSafeFixturesHaveNoExpectations(t *testing.T) {
-	dir := fixturesDir(t)
-	entries, err := os.ReadDir(dir)
-	if err != nil {
-		t.Fatalf("픽스처 디렉터리 읽기 실패: %v", err)
-	}
-	for _, e := range entries {
-		if e.IsDir() || !strings.HasPrefix(e.Name(), "safe_") {
-			continue
-		}
-		raw, err := os.ReadFile(filepath.Join(dir, e.Name()))
-		if err != nil {
-			t.Fatalf("픽스처 읽기 실패 %s: %v", e.Name(), err)
-		}
-		for i, l := range strings.Split(string(raw), "\n") {
-			if expectMarker.MatchString(l) {
-				t.Errorf("%s:%d 대조군 픽스처에 EXPECT 마커가 있다 — safe_* 는 검출 0건이어야 한다", e.Name(), i+1)
-			}
-		}
-	}
 }
 
 // TestNoYAMLFixturesUnderRules 는 #43 회귀 방어다.
