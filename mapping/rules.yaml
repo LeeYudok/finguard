@@ -1391,4 +1391,77 @@
         else -> "/home"
     }
     response.sendRedirect(dest)
+
+- rule_id: finguard.ts.sql-injection
+  code: FIN-SQLI-008
+  cwe: CWE-89
+  title: SQL 삽입(TypeScript/JavaScript)
+  severity: ERROR
+  basis: 개발보안가이드 「입력데이터 검증 및 표현 - SQL 삽입」
+  kisa_item: "전자금융기반시설 평가기준(2026) 웹·모바일·HTS 19 (SQL Injection)"
+  explain: 템플릿 보간·문자열 연결로 조립한 SQL 을 실행하거나, 파라미터화를 우회하는 raw 실행 API($queryRawUnsafe·$executeRawUnsafe·Prisma.raw)에 동적 문자열을 넘기고 있습니다. 조립에 쓰인 값이 외부 입력에서 유래하면 문장 구조가 바뀔 수 있습니다.
+  fix_example: |
+    ```ts
+    // 태그드 템플릿(파라미터 바인딩)
+    const rows = await prisma.$queryRaw`SELECT * FROM users WHERE id = ${userId}`;
+
+    // 드라이버 직접 사용 시 바인딩 파라미터
+    await pool.query("SELECT * FROM users WHERE id = $1", [userId]);
+    ```
+
+- rule_id: finguard.ts.hardcoded-crypto-material
+  code: FIN-CRY-012
+  cwe: CWE-321
+  title: 하드코드된 암호화 키/솔트/IV(TypeScript)
+  severity: ERROR
+  basis: 개발보안가이드 「보안기능 - 하드코드된 암호화 키 사용」
+  kisa_item: "전자금융기반시설 평가기준(2026) 웹·모바일·HTS 43 (앱 소스코드 내 운영정보 노출 방지)"
+  explain: 암호화 키·IV·솔트가 소스코드에 하드코드되어 있거나, IV 없는 deprecated 암호 API(createCipher)를 사용하고 있습니다. 소스 유출 시 암호화가 그대로 무력화됩니다. 이 점검은 리터럴 값만 확인하므로, 고정 상수에서 파생하거나 전역 단일 값으로 재사용하는 IV 는 별도 수동 확인이 필요합니다.
+  fix_example: |
+    ```ts
+    const key = await loadKeyFromSecretStore();          // 보호 저장소에서 로드
+    const iv = crypto.randomBytes(12);                   // 매 암호화마다 새 난수 IV
+    const cipher = crypto.createCipheriv("aes-256-gcm", key, iv);
+    ```
+
+- rule_id: finguard.ts.weak-crypto
+  code: FIN-CRY-013
+  cwe: CWE-327
+  title: 취약한 암호 알고리즘(TypeScript)
+  severity: WARNING
+  basis: 개발보안가이드 「보안기능 - 취약한 암호화 알고리즘 사용」
+  kisa_item: "전자금융기반시설 평가기준(2026) 웹·모바일·HTS 52 (취약한 HTTPS 암호 알고리즘 이용)"
+  explain: MD5/SHA-1/DES/RC4/ECB 는 충돌·해독이 실증된 알고리즘·운영모드입니다. SHA-256 이상, AES-GCM 등으로 교체해야 합니다.
+  fix_example: |
+    ```ts
+    const digest = crypto.createHash("sha256").update(data).digest("hex");
+    const cipher = crypto.createCipheriv("aes-256-gcm", key, crypto.randomBytes(12));
+    ```
+
+- rule_id: finguard.ts.insecure-random
+  code: FIN-CRY-014
+  cwe: CWE-338
+  title: 예측 가능한 난수로 보안값 생성(TypeScript)
+  severity: ERROR
+  basis: 개발보안가이드 「보안기능 - 적절하지 않은 난수 값 사용」
+  kisa_item: "전자금융기반시설 평가기준(2026) 웹·모바일·HTS 30 (유추 가능한 세션ID)"
+  explain: Math.random 계열은 암호학적으로 안전하지 않아 출력값을 예측할 수 있습니다. 키·토큰·OTP·솔트·세션ID 등 보안값 생성에는 crypto.randomBytes/randomUUID/getRandomValues 를 사용해야 합니다.
+  fix_example: |
+    ```ts
+    const token = crypto.randomBytes(32).toString("hex");
+    const otp = String(crypto.randomInt(0, 1000000)).padStart(6, "0");
+    ```
+
+- rule_id: finguard.ts.tls-verify-disabled
+  code: FIN-TLS-024
+  cwe: CWE-295
+  title: TLS 인증서 검증 비활성화(Node.js)
+  severity: ERROR
+  basis: 개발보안가이드 「보안기능 - 부적절한 인증서 유효성 검증」
+  kisa_item: "전자금융기반시설 평가기준(2026) 웹·모바일·HTS 47 (서버 인증서 무결성 검증)"
+  explain: rejectUnauthorized:false · NODE_TLS_REJECT_UNAUTHORIZED=0 · checkServerIdentity 무력화는 서버 인증서 검증을 건너뛰어 중간자 공격(MITM)에 그대로 노출됩니다.
+  fix_example: |
+    ```ts
+    // 사설 CA 는 검증을 끄는 대신 CA 인증서를 신뢰 목록에 추가한다
+    const agent = new https.Agent({ ca: fs.readFileSync("/etc/ssl/internal-ca.pem") });
     ```
