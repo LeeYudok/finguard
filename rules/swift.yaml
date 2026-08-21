@@ -18,7 +18,10 @@ rules:
       include: ["*.swift"]
       exclude: ["**/build/**", "**/DerivedData/**", "**/*.xcframework/**"]
     patterns:
-      - pattern-regex: '(?i)(let|var)\s+\w*(password|passwd|secret|api_?key|token|credential)\w*\s*=\s*"(?!(?-i:[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+)")(?!(?-i:[a-z]+(?:_[a-z]+)+)")[^"]{4,}"'
+      # 식별자 어휘는 6개 언어 공통 목록이다 (#36). 단독 `key` 는 넣지 않는다.
+      # 단독 `token` 은 이 룰에 원래 있던 항목이라 유지한다 — 공통 목록으로 대체하면
+      # Swift 만 기존 커버리지가 축소되는 회귀가 된다.
+      - pattern-regex: '(?i)(let|var)\s+\w*(password|passwd|pwd|secret|api[_-]?key|token|credential|passphrase|private[_-]?key|signing[_-]?key|encrypt(?:ion)?[_-]?key|master[_-]?key|aes[_-]?key|hmac[_-]?key)\w*\s*=\s*"(?!(?-i:[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+)")(?!(?-i:[a-z]+(?:_[a-z]+)+)")[^"]{4,}"'
       # 마스킹 플레이스홀더는 시크릿이 아니다 — 오히려 가리는 코드다
       - pattern-not-regex: '(?i)["''`](\*{3,}|x{3,}|•{3,}|\.{4,}|#{3,}|_{4,}|redacted|<[^>]*redact[^>]*>|change[_-]?me|placeholder|dummy|your[_-][\w-]*|todo|fixme)["''`]|[:=]\s*(\*{3,}|•{3,}|#{3,})(?![\w-])'
 
