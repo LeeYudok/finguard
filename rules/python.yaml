@@ -182,3 +182,113 @@ rules:
       - pattern-not: $APP.add_middleware(CORSMiddleware, ..., allow_credentials=True, ...)
       - pattern-not: CORSMiddleware(..., allow_credentials=True, ...)
       - pattern-not: CORS(..., supports_credentials=True, ...)
+
+  # 자격증명 파일 영속화 (#31).
+  #
+  # 기존 시크릿 룰은 전부 '리터럴 대입' 만 본다. 금융 API 클라이언트의 실제 공통 결함은
+  # 그게 아니라 런타임에 발급받은 액세스 토큰을 로컬에 떨구면서 권한을 좁히지 않는 것이다.
+  # 기본 umask(0022) 로 0644 가 되면 다중 사용자 호스트에서 타 계정이 읽어 계좌조회·주문
+  # API 를 그대로 호출할 수 있다.
+  #
+  # 억제 조건 설계:
+  #   - pattern-not-inside 의 스코프는 with 블록이 아니라 **감싸는 함수 전체**다. chmod 는
+  #     파일 핸들이 필요 없어 실무에서는 with 블록을 빠져나온 뒤 호출하는 형태가 흔하고,
+  #     with 블록으로 스코프를 잡으면 그 안전한 코드를 억제하지 못한다(실측 확인).
+  #   - chmod 존재만으로 억제하지 않는다. **소유자 전용 권한**(0o600/0o400/S_IRUSR 계열,
+  #     umask 0o077, os.open 0o600)일 때만 억제한다 — os.chmod(path, 0o644) 나
+  #     무관한 대상에 대한 os.chmod(LOG_DIR, 0o777) 는 억제 대상이 아니다.
+  #
+  # 싱크는 f.write 하나로 좁히지 않는다. json.dump·pickle.dump·Path.write_text·
+  # configparser.write 로 떨구는 형태가 실제로는 더 많다. 자격증명 어휘는 쓰이는 값뿐
+  # 아니라 대상 경로·파일 핸들 변수명에도 건다(값이 이름 있는 변수가 아니면 미매칭이므로).
+  - id: finguard.python.credential-file-write
+    languages: [python]
+    severity: WARNING
+    message: 런타임에 발급받은 자격증명(액세스 토큰·시크릿·비밀번호)을 로컬 파일에 저장하면서 파일 권한을 소유자 전용으로 좁히지 않고 있습니다. 저장 직후 os.chmod(path, 0o600) 으로 권한을 제한하거나 OS 자격증명 저장소를 사용해야 합니다. 이미 chmod 를 하고 있다면 권한값이 0o600/0o400 인지 확인이 필요합니다.
+    paths:
+      exclude: ["test_*.py", "*_test.py", "conftest.py"]
+    patterns:
+      - pattern-inside: |
+          def $FUNC(...):
+              ...
+      - pattern-either:
+          - patterns:
+              - pattern-either:
+                  - pattern: $F.write($S)
+                  - pattern: $F.writelines($S)
+                  - pattern: json.dump($S, ...)
+                  - pattern: pickle.dump($S, ...)
+                  - pattern: $P.write_text($S, ...)
+                  - pattern: $P.write_bytes($S, ...)
+              - metavariable-regex:
+                  metavariable: $S
+                  regex: '(?is).*(access[_-]?token|refresh[_-]?token|token|secret|password|passwd|api[_-]?key|appsecret|credential|private[_-]?key|access[_-]?key).*'
+          - patterns:
+              - pattern-either:
+                  - pattern: $F.write(...)
+                  - pattern: $F.writelines(...)
+                  - pattern: json.dump(..., $F, ...)
+                  - pattern: pickle.dump(..., $F, ...)
+              - metavariable-regex:
+                  metavariable: $F
+                  regex: '(?is).*(access[_-]?token|refresh[_-]?token|token|secret|password|passwd|api[_-]?key|appsecret|credential|private[_-]?key|access[_-]?key).*'
+          - patterns:
+              - pattern-either:
+                  - pattern: $P.write_text(...)
+                  - pattern: $P.write_bytes(...)
+              - metavariable-regex:
+                  metavariable: $P
+                  regex: '(?is).*(access[_-]?token|refresh[_-]?token|token|secret|password|passwd|api[_-]?key|appsecret|credential|private[_-]?key|access[_-]?key).*'
+          - patterns:
+              - pattern-inside: |
+                  with open($P, ...) as $F:
+                      ...
+              - pattern-either:
+                  - pattern: $F.write(...)
+                  - pattern: $F.writelines(...)
+                  - pattern: json.dump(..., $F, ...)
+                  - pattern: pickle.dump(..., $F, ...)
+                  - pattern: $CP.write($F)
+              - metavariable-regex:
+                  metavariable: $P
+                  regex: '(?is).*(access[_-]?token|refresh[_-]?token|token|secret|password|passwd|api[_-]?key|appsecret|credential|private[_-]?key|access[_-]?key).*'
+      - pattern-not-inside: |
+          def $SAFE(...):
+              ...
+              os.chmod(..., 0o600)
+              ...
+      - pattern-not-inside: |
+          def $SAFE(...):
+              ...
+              os.chmod(..., 0o400)
+              ...
+      - pattern-not-inside: |
+          def $SAFE(...):
+              ...
+              os.chmod(..., stat.S_IRUSR | stat.S_IWUSR)
+              ...
+      - pattern-not-inside: |
+          def $SAFE(...):
+              ...
+              os.chmod(..., stat.S_IRUSR)
+              ...
+      - pattern-not-inside: |
+          def $SAFE(...):
+              ...
+              $Q.chmod(0o600)
+              ...
+      - pattern-not-inside: |
+          def $SAFE(...):
+              ...
+              $Q.chmod(0o400)
+              ...
+      - pattern-not-inside: |
+          def $SAFE(...):
+              ...
+              os.umask(0o077)
+              ...
+      - pattern-not-inside: |
+          def $SAFE(...):
+              ...
+              os.open(..., 0o600)
+              ...

@@ -1583,3 +1583,20 @@
     - 검증을 무력화하지 않는 상위 버전으로 교체하거나 대체 라이브러리를 선정
     - 불가피하면 반입 심사 기록에 수용 위험(accepted risk)으로 등록하고 사용 범위를 제한
     ```
+
+# ── 자격증명 파일 영속화 (#31) ────────────────────────────────────────────
+
+- rule_id: finguard.python.credential-file-write
+  code: FIN-STO-003
+  cwe: CWE-922
+  title: 자격증명 파일 저장 시 권한 미제한
+  severity: WARNING
+  basis: 개발보안가이드 「보안기능 - 중요정보 평문 저장」
+  kisa_item: ""
+  explain: 런타임에 발급받은 액세스 토큰·시크릿을 로컬 파일에 저장하면서 파일 권한을 소유자 전용으로 좁히지 않고 있습니다. 기본 umask(0022)에서는 0644 로 생성되어 다중 사용자 호스트의 다른 계정이 그대로 읽을 수 있고, 탈취된 토큰으로 계좌조회·주문 API 를 호출할 수 있습니다. 이미 chmod 를 호출하고 있다면 권한값이 0o600/0o400 인지 확인해야 합니다.
+  fix_example: |
+    ```python
+    with open(token_path, "w", encoding="utf-8") as f:
+        f.write(token)
+    os.chmod(token_path, 0o600)   # 소유자만 읽기·쓰기
+    ```
