@@ -9,11 +9,24 @@ rules:
       exclude: ["*Test.java"]
     mode: taint
     pattern-sources:
+      # (a) Servlet 원시 API
       - pattern: $R.getParameter(...)
       - pattern: $R.getParameterValues(...)
       - pattern: $R.getHeader(...)
       - pattern: $R.getQueryString()
       - pattern: $R.getCookies()
+      # (b) Spring MVC 컨트롤러 파라미터 애노테이션 (#29).
+      #     메서드 시그니처 전체를 감싸고 focus-metavariable 로 파라미터를 지목해야
+      #     taint 가 실제로 전파된다. bare `@RequestBody $T $X` 는 --validate 는 통과하지만
+      #     파라미터 선언 노드만 매치할 뿐 오염이 흐르지 않아 0건이 된다
+      #     (semgrep 1.169.0 실측). `@X(...)` 는 인자 없는 `@X` 도 함께 매칭한다.
+      - patterns:
+          - pattern-either:
+              - pattern: "class $C { $RT $M(..., @RequestBody(...) $T $X, ...) { ... } }"
+              - pattern: "class $C { $RT $M(..., @RequestParam(...) $T $X, ...) { ... } }"
+              - pattern: "class $C { $RT $M(..., @PathVariable(...) $T $X, ...) { ... } }"
+              - pattern: "class $C { $RT $M(..., @RequestHeader(...) $T $X, ...) { ... } }"
+          - focus-metavariable: $X
     pattern-sinks:
       - patterns:
           - pattern-either:
@@ -206,11 +219,24 @@ rules:
       exclude: ["*Test.java"]
     mode: taint
     pattern-sources:
+      # (a) Servlet 원시 API
       - pattern: $R.getParameter(...)
       - pattern: $R.getParameterValues(...)
       - pattern: $R.getHeader(...)
       - pattern: $R.getQueryString()
       - pattern: $R.getCookies()
+      # (b) Spring MVC 컨트롤러 파라미터 애노테이션 (#29).
+      #     메서드 시그니처 전체를 감싸고 focus-metavariable 로 파라미터를 지목해야
+      #     taint 가 실제로 전파된다. bare `@RequestBody $T $X` 는 --validate 는 통과하지만
+      #     파라미터 선언 노드만 매치할 뿐 오염이 흐르지 않아 0건이 된다
+      #     (semgrep 1.169.0 실측). `@X(...)` 는 인자 없는 `@X` 도 함께 매칭한다.
+      - patterns:
+          - pattern-either:
+              - pattern: "class $C { $RT $M(..., @RequestBody(...) $T $X, ...) { ... } }"
+              - pattern: "class $C { $RT $M(..., @RequestParam(...) $T $X, ...) { ... } }"
+              - pattern: "class $C { $RT $M(..., @PathVariable(...) $T $X, ...) { ... } }"
+              - pattern: "class $C { $RT $M(..., @RequestHeader(...) $T $X, ...) { ... } }"
+          - focus-metavariable: $X
     pattern-sinks:
       - patterns:
           - pattern-either:
@@ -230,11 +256,24 @@ rules:
       exclude: ["*Test.java"]
     mode: taint
     pattern-sources:
+      # (a) Servlet 원시 API
       - pattern: $R.getParameter(...)
       - pattern: $R.getParameterValues(...)
       - pattern: $R.getHeader(...)
       - pattern: $R.getQueryString()
       - pattern: $R.getCookies()
+      # (b) Spring MVC 컨트롤러 파라미터 애노테이션 (#29).
+      #     메서드 시그니처 전체를 감싸고 focus-metavariable 로 파라미터를 지목해야
+      #     taint 가 실제로 전파된다. bare `@RequestBody $T $X` 는 --validate 는 통과하지만
+      #     파라미터 선언 노드만 매치할 뿐 오염이 흐르지 않아 0건이 된다
+      #     (semgrep 1.169.0 실측). `@X(...)` 는 인자 없는 `@X` 도 함께 매칭한다.
+      - patterns:
+          - pattern-either:
+              - pattern: "class $C { $RT $M(..., @RequestBody(...) $T $X, ...) { ... } }"
+              - pattern: "class $C { $RT $M(..., @RequestParam(...) $T $X, ...) { ... } }"
+              - pattern: "class $C { $RT $M(..., @PathVariable(...) $T $X, ...) { ... } }"
+              - pattern: "class $C { $RT $M(..., @RequestHeader(...) $T $X, ...) { ... } }"
+          - focus-metavariable: $X
     pattern-sinks:
       - patterns:
           - pattern-either:
@@ -334,11 +373,24 @@ rules:
       exclude: ["*Test.java"]
     mode: taint
     pattern-sources:
+      # (a) Servlet 원시 API
       - pattern: $R.getParameter(...)
       - pattern: $R.getParameterValues(...)
       - pattern: $R.getHeader(...)
       - pattern: $R.getQueryString()
       - pattern: $R.getCookies()
+      # (b) Spring MVC 컨트롤러 파라미터 애노테이션 (#29).
+      #     메서드 시그니처 전체를 감싸고 focus-metavariable 로 파라미터를 지목해야
+      #     taint 가 실제로 전파된다. bare `@RequestBody $T $X` 는 --validate 는 통과하지만
+      #     파라미터 선언 노드만 매치할 뿐 오염이 흐르지 않아 0건이 된다
+      #     (semgrep 1.169.0 실측). `@X(...)` 는 인자 없는 `@X` 도 함께 매칭한다.
+      - patterns:
+          - pattern-either:
+              - pattern: "class $C { $RT $M(..., @RequestBody(...) $T $X, ...) { ... } }"
+              - pattern: "class $C { $RT $M(..., @RequestParam(...) $T $X, ...) { ... } }"
+              - pattern: "class $C { $RT $M(..., @PathVariable(...) $T $X, ...) { ... } }"
+              - pattern: "class $C { $RT $M(..., @RequestHeader(...) $T $X, ...) { ... } }"
+          - focus-metavariable: $X
     pattern-sinks:
       - patterns:
           - pattern-either:
@@ -357,11 +409,24 @@ rules:
       exclude: ["*Test.java"]
     mode: taint
     pattern-sources:
+      # (a) Servlet 원시 API
       - pattern: $R.getParameter(...)
       - pattern: $R.getParameterValues(...)
       - pattern: $R.getHeader(...)
       - pattern: $R.getQueryString()
       - pattern: $R.getCookies()
+      # (b) Spring MVC 컨트롤러 파라미터 애노테이션 (#29).
+      #     메서드 시그니처 전체를 감싸고 focus-metavariable 로 파라미터를 지목해야
+      #     taint 가 실제로 전파된다. bare `@RequestBody $T $X` 는 --validate 는 통과하지만
+      #     파라미터 선언 노드만 매치할 뿐 오염이 흐르지 않아 0건이 된다
+      #     (semgrep 1.169.0 실측). `@X(...)` 는 인자 없는 `@X` 도 함께 매칭한다.
+      - patterns:
+          - pattern-either:
+              - pattern: "class $C { $RT $M(..., @RequestBody(...) $T $X, ...) { ... } }"
+              - pattern: "class $C { $RT $M(..., @RequestParam(...) $T $X, ...) { ... } }"
+              - pattern: "class $C { $RT $M(..., @PathVariable(...) $T $X, ...) { ... } }"
+              - pattern: "class $C { $RT $M(..., @RequestHeader(...) $T $X, ...) { ... } }"
+          - focus-metavariable: $X
     pattern-sinks:
       - pattern: new File(...)
       - pattern: new FileInputStream(...)
@@ -420,11 +485,24 @@ rules:
       exclude: ["*Test.java"]
     mode: taint
     pattern-sources:
+      # (a) Servlet 원시 API
       - pattern: $R.getParameter(...)
       - pattern: $R.getParameterValues(...)
       - pattern: $R.getHeader(...)
       - pattern: $R.getQueryString()
       - pattern: $R.getCookies()
+      # (b) Spring MVC 컨트롤러 파라미터 애노테이션 (#29).
+      #     메서드 시그니처 전체를 감싸고 focus-metavariable 로 파라미터를 지목해야
+      #     taint 가 실제로 전파된다. bare `@RequestBody $T $X` 는 --validate 는 통과하지만
+      #     파라미터 선언 노드만 매치할 뿐 오염이 흐르지 않아 0건이 된다
+      #     (semgrep 1.169.0 실측). `@X(...)` 는 인자 없는 `@X` 도 함께 매칭한다.
+      - patterns:
+          - pattern-either:
+              - pattern: "class $C { $RT $M(..., @RequestBody(...) $T $X, ...) { ... } }"
+              - pattern: "class $C { $RT $M(..., @RequestParam(...) $T $X, ...) { ... } }"
+              - pattern: "class $C { $RT $M(..., @PathVariable(...) $T $X, ...) { ... } }"
+              - pattern: "class $C { $RT $M(..., @RequestHeader(...) $T $X, ...) { ... } }"
+          - focus-metavariable: $X
     pattern-sinks:
       - patterns:
           - pattern-either:
@@ -448,11 +526,24 @@ rules:
       exclude: ["*Test.java"]
     mode: taint
     pattern-sources:
+      # (a) Servlet 원시 API
       - pattern: $R.getParameter(...)
       - pattern: $R.getParameterValues(...)
       - pattern: $R.getHeader(...)
       - pattern: $R.getQueryString()
       - pattern: $R.getCookies()
+      # (b) Spring MVC 컨트롤러 파라미터 애노테이션 (#29).
+      #     메서드 시그니처 전체를 감싸고 focus-metavariable 로 파라미터를 지목해야
+      #     taint 가 실제로 전파된다. bare `@RequestBody $T $X` 는 --validate 는 통과하지만
+      #     파라미터 선언 노드만 매치할 뿐 오염이 흐르지 않아 0건이 된다
+      #     (semgrep 1.169.0 실측). `@X(...)` 는 인자 없는 `@X` 도 함께 매칭한다.
+      - patterns:
+          - pattern-either:
+              - pattern: "class $C { $RT $M(..., @RequestBody(...) $T $X, ...) { ... } }"
+              - pattern: "class $C { $RT $M(..., @RequestParam(...) $T $X, ...) { ... } }"
+              - pattern: "class $C { $RT $M(..., @PathVariable(...) $T $X, ...) { ... } }"
+              - pattern: "class $C { $RT $M(..., @RequestHeader(...) $T $X, ...) { ... } }"
+          - focus-metavariable: $X
     pattern-sinks:
       - patterns:
           - pattern-either:

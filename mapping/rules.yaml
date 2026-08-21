@@ -1702,3 +1702,23 @@
 
     Cipher cipher = Cipher.getInstance(CIPHER_ALGORITHM);
     ```
+
+# 2차(stored) SSRF (#29). basis·kisa_item 은 같은 CWE(918) 기존 엔트리 FIN-SSRF-003 값을
+# 문자열 그대로 승계한다.
+
+- rule_id: finguard.ts.stored-ssrf
+  code: FIN-SSRF-005
+  cwe: CWE-918
+  title: 서버측 요청 위조(저장된 콜백/웹훅 URL, TS/JS)
+  severity: WARNING
+  basis: 개발보안가이드 「입력데이터 검증 및 표현 - 서버사이드 요청 위조」
+  kisa_item: "전자금융기반시설 평가기준(2026) 웹·모바일·HTS 61 (서버 사이드 요청 위조 (SSRF))"
+  explain: 콜백/웹훅 URL 필드가 서버 측 HTTP 요청 대상으로 사용되고 있습니다. 이 값이 가맹점·이용자가 등록한 값이라면 저장 후 호출되는 시점에는 오염 추적이 끊기므로, 등록 시점에 호스트 허용 목록과 사설 IP 대역 차단을 적용했는지 확인해야 합니다.
+  fix_example: |
+    ```ts
+    // 등록 시점에 검증하고, 검증된 값만 저장한다.
+    const u = new URL(input.webhook_url);
+    if (u.protocol !== "https:") throw new Error("https only");
+    if (!ALLOW_HOSTS.includes(u.hostname)) throw new Error("blocked host");
+    await prisma.payment_histories.update({ data: { webhook_url: u.href }, where });
+    ```
