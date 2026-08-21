@@ -243,6 +243,28 @@ block_on: [ERROR, WARNING]
 - SARIF 샘플과 기대 rdjsonl을 `testdata/`에 두고 골든 파일 테스트.
 - 실제 GitLab 호출은 통합 테스트로 분리. 기본 `go test`에서 제외.
 
+### 룰 회귀 픽스처
+
+새 룰을 만들거나 기존 룰을 고치면 **정탐 픽스처와 오탐 방지 픽스처를 함께** 넣는다.
+
+- 위치는 **`testdata/rule-fixtures/`** — `rules/` 안에 두면 안 된다. semgrep 은 `--config <디렉터리>`
+  하위의 모든 `.yml`/`.yaml` 을 룰 파일로 재귀 파싱하므로, yaml 픽스처가 하나라도 섞이면
+  룰셋 전체가 `0 rule(s)` 로 로드 실패한다 (#43, 회귀 테스트 `TestNoYAMLFixturesUnderRules`).
+- 기대값은 테스트가 아니라 **픽스처 안의 마커 주석**에 적는다 (#44). 검출이 기대되는 줄
+  **바로 위**에 한 줄:
+
+  ```python
+  # EXPECT: finguard.python.cleartext-websocket
+  REALTIME_FEED_URL = "ws://ops.example-broker.co.kr:21000"
+  ```
+
+  마커 뒤에 설명을 덧붙이면 매칭되지 않는다(룰ID 만 온다). `//` 주석도 같은 문법.
+- **`safe_` 접두 파일은 대조군**이라 마커를 가질 수 없다 — 어떤 룰에도 걸리지 않아야 한다.
+- `TestFixtureExpectationsMatchScan` 이 양방향으로 검사한다. 마커 있는데 미검출 = 미탐 회귀,
+  마커 없는데 검출 = 오탐 회귀. 라인 번호를 테스트에 적지 않으므로 블록을 어디에 추가하든
+  기대값이 따라 움직이고, 픽스처를 건드리는 PR 끼리 충돌하지 않는다.
+- 통합 테스트 실행: `go test -race -mod=vendor -tags semgrep_integration ./internal/scanner/`
+
 ## 작업 방식
 
 - 한 번에 한 패키지씩. 완료 후 빌드와 테스트 통과를 확인하고 다음으로 넘어간다.

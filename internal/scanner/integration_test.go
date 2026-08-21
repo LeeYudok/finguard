@@ -10,8 +10,11 @@ package scanner
 
 import (
 	"context"
+	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
+	"sort"
 	"strings"
 	"testing"
 )
@@ -26,6 +29,20 @@ func rulesDir(t *testing.T) string {
 	return p
 }
 
+// fixturesDir 는 룰 회귀 픽스처 디렉터리다.
+//
+// rules/ 바깥에 두는 것이 필수다 (#43) — semgrep 은 `--config <디렉터리>` 하위의 모든
+// .yml/.yaml 을 룰 파일로 재귀 파싱하므로, rules/ 안에 yaml 픽스처가 하나라도 있으면
+// 룰셋 전체가 "0 rule(s)" 로 로드 실패한다.
+func fixturesDir(t *testing.T) string {
+	t.Helper()
+	p, err := filepath.Abs("../../testdata/rule-fixtures")
+	if err != nil {
+		t.Fatalf("픽스처 경로 확인 실패: %v", err)
+	}
+	return p
+}
+
 func requireSemgrep(t *testing.T) {
 	t.Helper()
 	if _, err := exec.LookPath("semgrep"); err != nil {
@@ -33,145 +50,177 @@ func requireSemgrep(t *testing.T) {
 	}
 }
 
-// 회귀: es-toolkit 에서 제보한 template() variable 코드 주입 패턴을
-// FIN-INJ-001(finguard.ts.eval)이 반드시 검출해야 한다.
-func TestDetectsTemplateVariableInjection(t *testing.T) {
+// ── 기대값 마커 ──
+//
+// 픽스처는 검출이 기대되는 줄 **바로 위**에 마커 주석을 단다 (#44):
+//
+//	# EXPECT: finguard.python.cleartext-websocket
+//	REALTIME_FEED_URL = "ws://ops.example-broker.co.kr:21000"
+//
+// 기대값이 테스트가 아니라 픽스처 안에 있으므로 블록을 어디에 추가하든 따라 움직인다.
+// 라인 번호를 테스트에 하드코딩하던 구조는 픽스처를 건드리는 모든 PR 을 서로
+// 충돌시켰고, 병합 후 조용히 어긋나기까지 했다.
+var expectMarker = regexp.MustCompile(`(?:#|//)\s*EXPECT:\s*(\S+)\s*$`)
+
+// expectation 은 픽스처 한 줄에 기대되는 검출이다.
+type expectation struct {
+	file   string // 픽스처 파일의 베이스명
+	line   int    // 검출이 기대되는 줄 (마커 다음 줄)
+	ruleID string // 기대 룰 ID (semgrep 접두어 없는 suffix)
+}
+
+func (e expectation) String() string {
+	return e.file + ":" + itoa(e.line) + " " + e.ruleID
+}
+
+func itoa(n int) string {
+	if n == 0 {
+		return "0"
+	}
+	var b []byte
+	for n > 0 {
+		b = append([]byte{byte('0' + n%10)}, b...)
+		n /= 10
+	}
+	return string(b)
+}
+
+// parseExpectations 는 픽스처 디렉터리를 훑어 마커에서 기대 집합을 만든다.
+func parseExpectations(t *testing.T, dir string) map[expectation]bool {
+	t.Helper()
+	want := map[expectation]bool{}
+
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatalf("픽스처 디렉터리 읽기 실패: %v", err)
+	}
+	for _, e := range entries {
+		if e.IsDir() {
+			continue
+		}
+		raw, err := os.ReadFile(filepath.Join(dir, e.Name()))
+		if err != nil {
+			t.Fatalf("픽스처 읽기 실패 %s: %v", e.Name(), err)
+		}
+		lines := strings.Split(string(raw), "\n")
+		for i, l := range lines {
+			m := expectMarker.FindStringSubmatch(l)
+			if m == nil {
+				continue
+			}
+			if i+1 >= len(lines) {
+				t.Errorf("%s:%d 마커가 파일 마지막 줄에 있어 대상 줄이 없다", e.Name(), i+1)
+				continue
+			}
+			// lines 는 0-based, 파일 라인은 1-based → 마커 다음 줄 = i+2
+			want[expectation{file: e.Name(), line: i + 2, ruleID: m[1]}] = true
+		}
+	}
+	if len(want) == 0 {
+		t.Fatal("픽스처에서 EXPECT 마커를 하나도 찾지 못했다 — 마커 문법이 깨졌거나 경로가 틀렸다")
+	}
+	return want
+}
+
+// TestFixtureExpectationsMatchScan 은 픽스처 마커와 실제 스캔 결과가 정확히 일치하는지 본다.
+//
+// 양방향으로 검사한다.
+//   - 마커가 있는데 검출이 없다 → 미탐 회귀
+//   - 마커가 없는데 검출이 있다 → 오탐 회귀 (safe_* 픽스처의 "검출 0건"이 여기에 포함된다)
+func TestFixtureExpectationsMatchScan(t *testing.T) {
 	requireSemgrep(t)
-	dir, _ := filepath.Abs("../../rules/testdata/vuln-samples")
+	dir := fixturesDir(t)
+
+	want := parseExpectations(t, dir)
 
 	findings, err := CLI{}.Scan(context.Background(), rulesDir(t), dir)
 	if err != nil {
 		t.Fatalf("스캔 실패: %v", err)
 	}
 
-	var hitInjection bool
+	got := map[expectation]bool{}
 	for _, f := range findings {
-		// semgrep 이 디렉터리 config 에서 "rules." 접두어를 붙이므로 suffix 로 본다
-		if strings.HasSuffix(f.RuleID, "finguard.ts.eval") &&
-			filepath.Base(f.Path) == "template_variable_injection.ts" {
-			hitInjection = true
+		// semgrep 이 디렉터리 config 에서 "rules." 접두어를 붙이므로 잘라낸다.
+		id := f.RuleID
+		if i := strings.LastIndex(id, "finguard."); i >= 0 {
+			id = id[i:]
 		}
-		// 대조 픽스처는 어떤 룰에도 걸리지 않아야 한다
-		if filepath.Base(f.Path) == "safe_template.ts" {
-			t.Errorf("안전한 대조 픽스처가 %s 로 오검출됐다 (line %d)", f.RuleID, f.StartLine)
-		}
+		got[expectation{file: filepath.Base(f.Path), line: f.StartLine, ruleID: id}] = true
 	}
 
-	if !hitInjection {
-		t.Error("template variable 코드 주입(FIN-INJ-001)이 검출되지 않았다 — 회귀")
+	var missing, unexpected []string
+	for e := range want {
+		if !got[e] {
+			missing = append(missing, e.String())
+		}
+	}
+	for e := range got {
+		if !want[e] {
+			unexpected = append(unexpected, e.String())
+		}
+	}
+	sort.Strings(missing)
+	sort.Strings(unexpected)
+
+	for _, m := range missing {
+		t.Errorf("미탐 회귀 — 마커가 있는데 검출되지 않았다: %s", m)
+	}
+	for _, u := range unexpected {
+		t.Errorf("오탐 회귀 — 마커가 없는데 검출됐다: %s", u)
+	}
+
+	t.Logf("기대 %d건 · 검출 %d건 · 전부 일치", len(want), len(got))
+}
+
+// TestSafeFixturesHaveNoExpectations 는 safe_ 접두 픽스처가 마커를 갖지 않음을 강제한다.
+//
+// safe_* 는 "어떤 룰에도 걸리면 안 되는" 대조군이다. 여기에 마커가 생기면 위 테스트가
+// 그 검출을 정당한 것으로 받아들여 대조군의 의미가 사라진다.
+func TestSafeFixturesHaveNoExpectations(t *testing.T) {
+	dir := fixturesDir(t)
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatalf("픽스처 디렉터리 읽기 실패: %v", err)
+	}
+	for _, e := range entries {
+		if e.IsDir() || !strings.HasPrefix(e.Name(), "safe_") {
+			continue
+		}
+		raw, err := os.ReadFile(filepath.Join(dir, e.Name()))
+		if err != nil {
+			t.Fatalf("픽스처 읽기 실패 %s: %v", e.Name(), err)
+		}
+		for i, l := range strings.Split(string(raw), "\n") {
+			if expectMarker.MatchString(l) {
+				t.Errorf("%s:%d 대조군 픽스처에 EXPECT 마커가 있다 — safe_* 는 검출 0건이어야 한다", e.Name(), i+1)
+			}
+		}
 	}
 }
 
-// 회귀(#19): curl|sh 룰이 실행되는 명령만 잡고, 안내용 문자열 리터럴은 잡지 않아야 한다.
-// 실코드 스캔에서 검출 7건 중 3건이 `info "설치 중: curl ... | sh"` 형태의 오탐이었다.
-func TestCurlPipeShellSkipsStringLiterals(t *testing.T) {
-	requireSemgrep(t)
-	dir, _ := filepath.Abs("../../rules/testdata/vuln-samples")
-
-	findings, err := CLI{}.Scan(context.Background(), rulesDir(t), dir)
+// TestNoYAMLFixturesUnderRules 는 #43 회귀 방어다.
+//
+// rules/ 하위에 .yml/.yaml 픽스처가 생기면 semgrep 이 그것을 룰 파일로 파싱해
+// 룰셋 전체가 로드 실패한다. 룰 파일 자신(rules/*.yaml)만 허용한다.
+func TestNoYAMLFixturesUnderRules(t *testing.T) {
+	root := rulesDir(t)
+	err := filepath.Walk(root, func(p string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if info.IsDir() {
+			return nil
+		}
+		ext := strings.ToLower(filepath.Ext(p))
+		if ext != ".yml" && ext != ".yaml" {
+			return nil
+		}
+		if filepath.Dir(p) != root {
+			t.Errorf("rules/ 하위 디렉터리에 YAML 이 있다: %s — semgrep 이 룰 파일로 파싱해 룰셋 전체가 로드 실패한다 (#43). 픽스처는 testdata/rule-fixtures/ 에 둔다", p)
+		}
+		return nil
+	})
 	if err != nil {
-		t.Fatalf("스캔 실패: %v", err)
-	}
-
-	// 정탐 픽스처의 실행 라인 — 하나라도 빠지면 recall 회귀다.
-	wantLines := map[int]bool{7: false, 10: false, 13: false, 16: false, 19: false, 22: false, 25: false}
-
-	for _, f := range findings {
-		base := filepath.Base(f.Path)
-		// 안내 문자열만 담은 픽스처는 어떤 룰에도 걸리면 안 된다.
-		if base == "safe_curl_pipe_shell_string.sh" {
-			t.Errorf("문자열 리터럴 픽스처가 %s 로 오검출됐다 (line %d)", f.RuleID, f.StartLine)
-			continue
-		}
-		if base != "curl_pipe_shell.sh" {
-			continue
-		}
-		if !strings.HasSuffix(f.RuleID, "finguard.shell.curl-pipe-shell") {
-			t.Errorf("정탐 픽스처가 예상 밖 룰 %s 로 검출됐다 (line %d)", f.RuleID, f.StartLine)
-			continue
-		}
-		if _, ok := wantLines[f.StartLine]; !ok {
-			t.Errorf("정탐 픽스처의 비대상 라인 %d 이 검출됐다", f.StartLine)
-			continue
-		}
-		wantLines[f.StartLine] = true
-	}
-
-	for line, hit := range wantLines {
-		if !hit {
-			t.Errorf("curl_pipe_shell.sh:%d 이 검출되지 않았다 — 회귀", line)
-		}
-	}
-}
-
-// 회귀(#20): 파이썬 룰 8종이 각각 정탐 픽스처를 정확히 검출하고, 오탐 방지
-// 픽스처는 어떤 룰에도 걸리지 않아야 한다. "실코드 스캔에서 파이썬 검출 0건"이
-// 나왔을 때 그것이 코드가 깨끗해서인지 룰이 죽어서인지 이 테스트가 판별한다.
-func TestPythonRulesDetectVulnsAndSkipSafeFixtures(t *testing.T) {
-	requireSemgrep(t)
-	dir, _ := filepath.Abs("../../rules/testdata/vuln-samples")
-
-	findings, err := CLI{}.Scan(context.Background(), rulesDir(t), dir)
-	if err != nil {
-		t.Fatalf("스캔 실패: %v", err)
-	}
-
-	// 룰ID(suffix) → python_vulns.py 에서 정탐이 기대되는 라인 집합.
-	// tls-verify-disabled 는 형태가 여럿이라 라인이 여러 개다 (#26):
-	// requests verify=False / 전역 기본 컨텍스트 교체 / verify_mode 직접 해제 / httpx.
-	wantLines := map[string][]int{
-		"finguard.python.hardcoded-secret":    {17},
-		"finguard.python.weak-hash":           {22},
-		"finguard.python.http-url":            {26},
-		"finguard.python.sql-format":          {31},
-		"finguard.python.subprocess-shell":    {37},
-		"finguard.python.eval-exec":           {42},
-		"finguard.python.tls-verify-disabled": {47, 52, 58, 64},
-		"finguard.python.cleartext-websocket": {68},
-		"finguard.python.yaml-unsafe-load":    {73},
-	}
-	hit := map[string]map[int]bool{}
-	for id, lines := range wantLines {
-		hit[id] = make(map[int]bool, len(lines))
-		for _, ln := range lines {
-			hit[id][ln] = false
-		}
-	}
-
-	for _, f := range findings {
-		base := filepath.Base(f.Path)
-
-		if base == "safe_python.py" {
-			t.Errorf("오탐 방지 픽스처가 %s 로 오검출됐다 (line %d)", f.RuleID, f.StartLine)
-			continue
-		}
-		if base != "python_vulns.py" {
-			continue
-		}
-
-		var matched string
-		for ruleID := range wantLines {
-			if strings.HasSuffix(f.RuleID, ruleID) {
-				matched = ruleID
-				break
-			}
-		}
-		if matched == "" {
-			t.Errorf("python_vulns.py 가 예상 밖 룰 %s 로 검출됐다 (line %d)", f.RuleID, f.StartLine)
-			continue
-		}
-		if _, ok := hit[matched][f.StartLine]; !ok {
-			t.Errorf("%s 가 예상 밖 라인 %d 에서 검출됐다 (기대: %v)", matched, f.StartLine, wantLines[matched])
-			continue
-		}
-		hit[matched][f.StartLine] = true
-	}
-
-	for ruleID, lines := range wantLines {
-		for _, ln := range lines {
-			if !hit[ruleID][ln] {
-				t.Errorf("python_vulns.py:%d 에서 %s 가 검출되지 않았다 — 회귀", ln, ruleID)
-			}
-		}
+		t.Fatalf("rules/ 순회 실패: %v", err)
 	}
 }
