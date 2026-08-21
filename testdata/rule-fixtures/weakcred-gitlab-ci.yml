@@ -1,0 +1,10 @@
+# finguard.ci.plaintext-secret → weak-credential 인계 픽스처 (#63).
+#
+# CI 설정도 반복 필러를 억제하므로, weak-credential 의 include 에 CI 경로가
+# 빠지면 그 구간만 조용히 무검출이 된다. 그 구멍을 막는 고정이다.
+variables:
+  # EXPECT: finguard.config.weak-credential
+  DEPLOY_TOKEN: zxzxzxzxzxzx
+  # 난수 값은 그대로 ci.plaintext-secret 이 잡는다
+  # EXPECT: finguard.ci.plaintext-secret
+  REGISTRY_PASSWORD: Zk7Qp3mXv9Lr2Ns8
