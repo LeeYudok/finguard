@@ -13,3 +13,4 @@
 ## 프로젝트
 - [제목](project_xxx.md) — 한 줄 훅
 -->
+- [graphify 로컬 Ollama 함정](project_graphify-local-ollama.md) — `[ollama]` extra 필수, 리즈닝 모델은 hollow 응답, vendor/testdata 는 .graphifyignore 로 제외
