@@ -8,3 +8,6 @@ __pycache__/
 .env
 .env.*
 !.env.example
+
+# graphify 장기 기억 그래프 — 로컬 빌드 (AGENTS.md 참조)
+graphify-out/

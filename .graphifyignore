@@ -1,0 +1,4 @@
+vendor/
+testdata/
+graphify-out/
+.codegraph/
