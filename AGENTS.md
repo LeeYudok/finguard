@@ -69,9 +69,9 @@ go test -race -mod=vendor -tags semgrep_integration ./internal/scanner/  # 룰 �
 `.claude/memory/` 파일은 사고 회고·피드백처럼 그래프가 추출 못 하는 것만 남긴다.
 
 ```bash
-graphify . --backend ollama --model qwen3.6:35b   # 최초 빌드 (로컬 Ollama, 외부 전송 없음)
-graphify . --update                               # 변경분만 재추출
-graphify query "<질문>"                           # 세션 시작 시 컨텍스트 확보
+graphify . --code-only                 # 코드 그래프 (로컬 AST, LLM 불필요). 제외 목록은 .graphifyignore
+graphify . --update --backend ollama --model <비리즈닝 모델>  # 문서까지 의미 추출 — 리즈닝 모델(qwen3.6 등)은 빈 응답으로 실패
+graphify query "<질문>"                # 세션 시작 시 컨텍스트 확보
 ```
 
 코드 심볼 단위 탐색은 CodeGraph(`.codegraph/`, 전역 gitignore). 코드 위치를 찾거나 호출
