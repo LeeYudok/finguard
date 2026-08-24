@@ -5,6 +5,9 @@
 
 @.claude/memory/MEMORY.md
 
+매 세션 항상 로드되는 파일이므로 **프로젝트 고유 사실만** 둔다. 경로별 세부 규약은
+`.claude/rules/`(스코프 로드), 절차는 `.claude/skills/`, 사고 회고는 `.claude/memory/` 에 있다.
+
 ## 메모리 경로 오버라이드
 
 이 프로젝트의 auto-memory SSOT는 `.claude/memory/` 이다.
@@ -36,11 +39,15 @@
 
 은행 소스코드 취약점 점검 봇. 특정 은행에 종속되지 않는 은행권 범용 도구다. 개발 GitLab의 MR에 취약점 근거와 수정 가이드를 인라인 코멘트로 단다.
 
-## 스택
+finguard은 보안 담당 조직의 리눅스 서버에서 상시 구동된다. CI 러너 안이 아니다.
+
+## 스택 · 제약
 
 - Go 1.22+ · 표준 라이브러리 우선, 외부 의존성 최소화 (현재 `gopkg.in/yaml.v3` 1개)
-- Semgrep OSS(커스텀 룰 YAML) · reviewdog — 둘 다 외부 바이너리 호출, 포크·수정하지 않는다
-- 폐쇄망 전제: `go get` 불가, 의존성은 `vendor/` 커밋
+- Semgrep OSS(커스텀 룰 YAML) · reviewdog — 둘 다 외부 바이너리 호출(`os/exec`), **포크·수정하지 않는다**
+- 폐쇄망 전제: `go get` 불가, 의존성은 `vendor/` 커밋. 외부 API 호출 없음, 사내 GitLab만 접근
+- 로그에 소스코드 본문을 남기지 않는다. 파일경로와 라인번호까지만
+- 에러 시 조용히 죽지 말 것. webhook은 200을 반환하고 실패는 로그로 남긴다
 
 ## 명령
 
@@ -49,6 +56,7 @@ go build -mod=vendor ./...     # 빌드
 go test -race -mod=vendor ./... # 테스트 (레이스 감지 포함)
 make build-linux               # 폐쇄망 반입용 정적 바이너리
 semgrep --validate --config rules/   # 룰 문법 검증
+go test -race -mod=vendor -tags semgrep_integration ./internal/scanner/  # 룰 픽스처 통합 테스트
 ```
 
 ## 코드 탐색 — CodeGraph
@@ -73,10 +81,21 @@ Semgrep·reviewdog 은 인터페이스로 추상화돼 있어 호출 흐름이 g
   → finguard: 룰ID로 금보원 매핑 조회 → rdjsonl 생성
   → reviewdog: diff 필터 · 중복 제거 · MR discussion POST
   → 개발 GitLab MR 인라인 코멘트
-
 ```
 
-finguard은 보안 담당 조직의 리눅스 서버에서 상시 구동된다. CI 러너 안이 아니다. reviewdog은 외부 바이너리로 호출한다. **포크하거나 수정하지 않는다.**
+```
+cmd/finguard/main.go
+internal/
+  webhook/   MR 이벤트 수신 · secret token 검증
+  gitlab/    diff 조회 · 소스 clone
+  scanner/   semgrep 실행 · SARIF 파싱 · 전역 exclude(exclude.go)
+  mapping/   룰ID → 금보원 항목 (YAML 로드)
+  rdjson/    SARIF + 매핑 → rdjsonl 출력
+  runner/    reviewdog 프로세스 파이프
+mapping/rules.yaml          룰ID → 금보원 매핑 (이 프로젝트의 고유 자산)
+rules/                      Semgrep 커스텀 룰
+testdata/rule-fixtures/     룰 회귀 픽스처 (rules/ 안에 두면 안 됨)
+```
 
 ## 역할 경계 (중요)
 
@@ -96,28 +115,6 @@ finguard이 하지 않는 것:
 - GitLab Discussion API 직접 호출 (reviewdog이 처리)
 - 코드 자동 수정 (가이드만 제시, 수정은 개발자 몫)
 
-## 기술 스택
-
-- Go 1.22+
-- 외부 의존성 최소화. 표준 라이브러리 우선
-- Semgrep: OSS 버전, 커스텀 룰 YAML
-- reviewdog: 바이너리 호출 (`os/exec`)
-
-## 디렉토리
-
-```
-cmd/finguard/main.go
-internal/
-  webhook/   MR 이벤트 수신 · secret token 검증
-  gitlab/    diff 조회 · 소스 clone
-  scanner/   semgrep 실행 · SARIF 파싱
-  mapping/   룰ID → 금보원 항목 (YAML 로드)
-  rdjson/    SARIF + 매핑 → rdjsonl 출력
-  runner/    reviewdog 프로세스 파이프
-mapping/rules.yaml
-
-```
-
 ## reviewdog 호출 규약
 
 ```bash
@@ -127,7 +124,6 @@ finguard scan --mr-iid=$MR_IID --project=$PROJECT_ID \
       -reporter=gitlab-mr-discussion \
       -filter-mode=added \
       -fail-level=error
-
 ```
 
 필수 환경변수:
@@ -143,7 +139,6 @@ CI 밖에서 실행하므로 위 변수는 finguard이 webhook payload에서 뽑
 
 ```json
 {"source":{"name":"finguard"},"severity":"ERROR","location":{"path":"src/main/java/UserDao.java","range":{"start":{"line":42,"column":9},"end":{"line":42,"column":68}}},"message":"..."}
-
 ```
 
 severity는 `ERROR` / `WARNING` / `INFO` 중 하나.
@@ -167,7 +162,6 @@ severity는 `ERROR` / `WARNING` / `INFO` 중 하나.
         "SELECT * FROM USER WHERE ID = ?");
     ps.setString(1, userId);
     ```
-
 ```
 
 매핑에 없는 룰ID가 나오면 코멘트를 생략한다. 임의 문구를 지어내지 않는다.
@@ -225,163 +219,49 @@ block_on: [ERROR, WARNING]
 
 수정 예시:
 {fix_example}
-
 ```
 
 근거(`basis`, `kisa_item`)는 반드시 매핑 테이블 값을 그대로 쓴다. LLM이나 추론으로 생성하지 않는다. 감사 대응 자료이므로 출처가 확정되어야 한다.
-
-## 제약
-
-- 폐쇄망. `go get` 불가. 의존성은 vendor 디렉토리로 커밋한다.
-- 외부 API 호출 없음. 사내 GitLab만 접근.
-- 로그에 소스코드 본문을 남기지 않는다. 파일경로와 라인번호까지만.
-- 에러 시 조용히 죽지 말 것. webhook은 200을 반환하고 실패는 로그로 남긴다.
 
 ## 테스트
 
 - Semgrep과 reviewdog은 인터페이스로 추상화해 목(mock) 가능하게 한다.
 - SARIF 샘플과 기대 rdjsonl을 `testdata/`에 두고 골든 파일 테스트.
 - 실제 GitLab 호출은 통합 테스트로 분리. 기본 `go test`에서 제외.
-
-### 룰 회귀 픽스처
-
-새 룰을 만들거나 기존 룰을 고치면 **정탐 픽스처와 오탐 방지 픽스처를 함께** 넣는다.
-
-- 위치는 **`testdata/rule-fixtures/`** — `rules/` 안에 두면 안 된다. semgrep 은 `--config <디렉터리>`
-  하위의 모든 `.yml`/`.yaml` 을 룰 파일로 재귀 파싱하므로, yaml 픽스처가 하나라도 섞이면
-  룰셋 전체가 `0 rule(s)` 로 로드 실패한다 (#43, 회귀 테스트 `TestNoYAMLFixturesUnderRules`).
-- 기대값은 테스트가 아니라 **픽스처 안의 마커 주석**에 적는다 (#44). 검출이 기대되는 줄
-  **바로 위**에 한 줄:
-
-  ```python
-  # EXPECT: finguard.python.cleartext-websocket
-  REALTIME_FEED_URL = "ws://ops.example-broker.co.kr:21000"
-  ```
-
-  마커 뒤에 설명을 덧붙이면 매칭되지 않는다(룰ID 만 온다).
-- **주석 형태 3종** — 파일 문법에 맞는 것을 쓴다.
-
-  | 형태 | 대상 |
-  | :--- | :--- |
-  | `# EXPECT: <룰ID>` | 파이썬·셸·YAML·properties |
-  | `// EXPECT: <룰ID>` | Go·Java·Kotlin·Swift·TS |
-  | `<!-- EXPECT: <룰ID> -->` | XML·plist (#61) |
-
-  XML 은 한 줄로 여닫는다. 주석을 다음 줄에서 닫거나 `<!--` / `# EXPECT:` / `-->` 로
-  쪼개던 우회책은 폐기했다 (#61). 닫기(`-->`) 앞뒤에 설명을 붙이면 다른 형태와 똑같이
-  매칭되지 않는다.
-- **하위 디렉터리도 순회한다** (#60). 마커 파서(`walkFixtures`)와 스캔(`CLI.Scan`)의 순회
-  범위가 같으므로, `paths.include` 로 경로 구조 자체를 판정 기준으로 삼는 룰
-  (`finguard.swift.insecure-trust-vendor` 등)도 벤더 경로 하위에 픽스처를 두고 검증한다.
-  기대값 키는 픽스처 루트 기준 **상대경로**라 다른 디렉터리의 동명 파일이 섞이지 않는다.
-  - 단 `DefaultExcludes`(`internal/scanner/exclude.go`)에 걸리는 경로는 스캔 자체에서
-    빠진다 — `Pods/` 하위 픽스처는 `--exclude Pods` 때문에 검출되지 않으므로
-    `Carthage/` 를 쓴다.
-  - 바이너리(NUL 바이트 포함 파일)는 마커 순회에서 건너뛴다.
-- **`safe_` 접두 파일은 대조군**이라 마커를 가질 수 없다 — 어떤 룰에도 걸리지 않아야 한다.
-  하위 디렉터리의 `safe_*` 도 같은 기준으로 검사한다.
-- `TestFixtureExpectationsMatchScan` 이 양방향으로 검사한다. 마커 있는데 미검출 = 미탐 회귀,
-  마커 없는데 검출 = 오탐 회귀. 라인 번호를 테스트에 적지 않으므로 블록을 어디에 추가하든
-  기대값이 따라 움직이고, 픽스처를 건드리는 PR 끼리 충돌하지 않는다.
-- 마커 문법·순회 구현은 **`internal/scanner/expect_marker_test.go` 한 곳**에만 있다.
-  이 파일에는 빌드 태그가 없어 기본 `go test` 와 `-tags semgrep_integration` 양쪽에서
-  컴파일되고, 태그 뒤의 `integration_test.go` 가 그 정의를 그대로 쓴다. 예전처럼 문법을
-  양쪽에 복제하면 어긋난 순간 마커가 조용히 무시되고 통합 테스트가 "기대 0건 · 검출 0건"
-  으로 통과한다 — 복제하지 말 것 (#60·#61).
-- 통합 테스트 실행: `go test -race -mod=vendor -tags semgrep_integration ./internal/scanner/`
-- 레포 루트의 **`.semgrepignore` 를 지우지 말 것** (#25). semgrep 은 이 파일이 없으면
-  내장 기본 무시목록을 쓰는데 거기에 `test/`·`tests/`·`*_test.go` 가 들어 있어,
-  `*_test.go`·`*Test.java` 픽스처와 `finguard.<lang>.hardcoded-secret-test` 룰이
-  룰 설정과 무관하게 통째로 사라진다. 운영 스캔에서는 `internal/scanner` 가 대상 루트에
-  같은 파일을 심는다(레포가 자기 것을 갖고 있으면 건드리지 않는다).
-
-### 시크릿 형태 픽스처는 외부 스캐너를 트립시킨다
-
-시크릿 탐지 룰의 정탐 픽스처는 정의상 "시크릿처럼 생긴 문자열"이고, GitHub 시크릿
-스캐닝의 탐지기도 값의 유효성이 아니라 **형태만** 보므로 반드시 함께 걸린다 (#82).
-
-- **픽스처 값의 형태를 바꿔 회피하지 마라.** 형태가 깨지면 우리 룰도 못 잡아 정탐
-  픽스처의 목적이 사라진다.
-- 대신 `.github/secret_scanning.yml` 의 `paths-ignore` 가 `testdata/rule-fixtures/**`
-  를 제외한다. 픽스처는 반드시 그 아래에 둔다.
-- 픽스처에 **실제 자격증명을 넣지 마라.** 합성값을 쓰고, 형태만 룰이 요구하는 대로
-  맞춘다(예: 문자 클래스를 규칙적으로 교대시키면 사람이 봐도 합성임이 드러난다).
-- 운영 코드·설정 경로는 제외 대상이 아니다 — 거기서의 실제 유출 탐지는 유지된다.
-
-### 스코프는 룰 파일이 소유한다
-
-`DefaultExcludes`(`internal/scanner/exclude.go`)의 전역 `--exclude` 는 semgrep 의 **타겟
-선정 단계**에서 작동해 룰의 `paths.include` 보다 먼저 파일을 걷어낸다. 그래서 전역에서
-제외한 경로는 어떤 룰도 볼 수 없다 — 그 경로를 의도적으로 점검하는 룰이 있어도 마찬가지다.
-
-- 특정 경로를 **의도적으로 점검하는 룰**(예: `finguard.swift.insecure-trust-vendor` 는
-  벤더 코드의 인증서 검증 무력화를 본다)이 존재하면, 그 경로를 `DefaultExcludes` 에
-  넣으면 안 된다. 제외가 필요한 다른 룰들은 각자 `paths.exclude` 에 적는다 (#75).
-- `Pods`·`Carthage` 가 이 경우다. `DefaultExcludes` 에 넣으면
-  `TestDefaultExcludesLeavesVendorScopeToRules` 가 실패한다.
-- 전역 제외에 새 항목을 추가할 때는 **그 경로를 대상으로 하는 룰이 없는지** 먼저 확인하라.
+- **Semgrep 룰·픽스처 규약**(`EXPECT:` 마커, `safe_` 대조군, `.semgrepignore` 유지,
+  시크릿 형태 픽스처의 GitHub 시크릿 스캐닝 제외, 전역 exclude 와 룰 `paths` 의 스코프 소유)은
+  [`.claude/rules/rule-fixtures.md`](.claude/rules/rule-fixtures.md) — `rules/`·
+  `testdata/rule-fixtures/`·`internal/scanner/` 편집 시 자동 로드된다. 룰을 만들거나 고치기 전에 읽을 것.
 
 ## 작업 방식
 
 - 한 번에 한 패키지씩. 완료 후 빌드와 테스트 통과를 확인하고 다음으로 넘어간다.
 - 스펙이 불확실하면 추측하지 말고 질문한다. 특히 SARIF 필드명, rdjsonl 필드명, GitLab API 응답 구조는 실물 확인 없이 지어내지 말 것.
+- skill/agent 신규 생성 시 `finguard-` prefix 네임스페이스.
 
-## 컨벤션
+## 규칙 등급 · 워크플로
 
-- skill/agent 신규 생성 시 `finguard-` prefix 네임스페이스
-- 세부 규약은 `.claude/rules/` 의 paths 스코프 룰 참조
-- 스택별 세부 규약 → 아래 우선순위 체계 참조
+전문은 항상 로드되는 [`.claude/rules/common.md`](.claude/rules/common.md), forge 절차는
+[`.claude/rules/forge.md`](.claude/rules/forge.md). 요약:
 
-## 우선순위 체계 (P0/P1/P2)
+| 등급 | 내용 | 위반 시 |
+| :--- | :--- | :--- |
+| **P0** | 시크릿 노출 금지 · prod 파괴 쿼리 사전 동의 · `force push`/`reset --hard` 확인 · 인증 없는 엔드포인트 금지 | 즉시 중단, 사용자 에스컬레이션 |
+| **P1** | 이슈 번호를 브랜치·커밋·PR 제목에 · pre-commit 게이트 통과 · 새 기능엔 테스트 1개 이상 · `main`/`develop` 직접 커밋 금지 | PR 차단 |
+| **P2** | 함수 CC 15 이하 · 파일 300줄 초과 시 분리 검토 · TODO/FIXME 에 이슈 번호 | 리뷰 지적 |
 
-### P0 — 절대 규칙 (AI/사람 모두, 예외 없음)
-P0 위반 시 즉시 작업 중단 + 사용자 에스컬레이션.
-
-- **보안**: 시크릿/토큰/비밀번호를 코드·로그·이슈에 노출 금지
-- **데이터**: 프로덕션 DB에 `DELETE/DROP/TRUNCATE` 전 사용자 명시 동의
-- **git**: `force push` / `reset --hard` 전 확인. `.env` 스테이징 금지
-- **인증**: 인증 없는 API 엔드포인트 신규 추가 금지
-- **스택별 P0**: 각 `.claude/rules/<stack>.md` 의 `## P0` 섹션 참조
-
-### P1 — 필수 (AI 자율 실행 범위, 위반 시 PR 차단)
-
-- 이슈 번호를 브랜치명·커밋·PR/MR 제목에 반드시 포함
-- 커밋 전 타입체크·린트 통과 (`.claude/hooks/pre-commit.sh` 자동 게이트)
-- 새 기능에 최소 1개 테스트 동반
-- `main`/`develop` 직접 커밋 금지 → 항상 feature/fix/chore 브랜치
-
-### P2 — 권장 (리뷰 지적 사항, 예외 협의 가능)
-
-- 함수당 인지 복잡도(CC) 15 이하 (`.claude/hooks/cc-check.py` 경고)
-- 파일 1개 = 단일 책임 (300줄 초과 시 분리 검토)
-- TODO/FIXME 에 이슈 번호 병기
-
-## 워크플로
-
-1. **이슈 등록** → 2. **브랜치 생성** (`feat/issue-<N>-<slug>`) → 3. **구현** →
-4. **pre-commit 자동 게이트 통과** → 5. **PR/MR 생성** → 6. **리뷰** → 7. **머지 + 이슈 클로즈**
-
-이슈 클로즈 규약은 forge 별로 다르다 → `.claude/rules/forge.md` 참조.
-GitHub = PR 본문 `Closes #N` 으로 머지 시 자동 클로즈. GitLab 19 = `Closes #N` 자동 클로즈 실측 동작 — 단 머지 후 `glab issue view <N>` 로 확인하고, `opened` 로 남은 경우에만 수동 클로즈.
+이슈 등록 → `feat/issue-<N>-<slug>` 브랜치 → 구현 → pre-commit 게이트 → PR(`Closes #N`) → 리뷰 → squash 머지.
+GitHub 는 `Closes #N` 으로 머지 시 자동 클로즈된다.
 
 ## 멀티 에이전트 · 병렬 세션
 
-이 레포를 동시에 만지는 모든 워커(세션·서브에이전트·페르소나)는 **각자의 git worktree**
-로 격리한다 — 이 섹션은 공유 체크아웃을 쓰던 병렬 세션 두 개가 서로의 작업을
-교차오염시킨 사고에서 나왔다.
+공유 체크아웃을 쓰던 병렬 세션 두 개가 서로의 작업을 교차오염시킨 사고에서 나온 규칙이다.
 
-- 선제 격리: `git worktree add ../finguard-<slug> -b <type>/issue-<N>` —
-  1세션 = 1worktree = 1이슈 = 1브랜치.
-- 정식 클론은 default 브랜치 미러로 유지(pull·읽기만 — 거기서 `checkout`/`switch`
-  **금지**; 공유 폴더에서 브랜치를 갈아타는 순간 다른 세션의 발밑이 바뀐다).
-- `git add` 는 명시 파일만, 디렉터리·`-A` 금지 — 다른 세션의 미커밋 작업을 흡수하지 않기 위함.
-- `git status` 에 내가 만들지 않은 변경이 보이면 진행 전에 병렬 세션 여부부터 확인.
+- **1세션 = 1worktree = 1이슈 = 1브랜치**: `git worktree add ../finguard-<slug> -b <type>/issue-<N>`.
+  정식 클론은 default 브랜치 미러(pull·읽기만, `checkout`/`switch` 금지).
+- `git add` 는 명시 파일만 — 디렉터리·`-A` 금지. `git status` 에 내가 만들지 않은 변경이 보이면 병렬 세션 여부부터 확인.
 - 병렬 서브에이전트가 파일을 동시에 수정하면 `isolation: "worktree"` 필수.
-- 머지 후: worktree 제거 + 로컬 브랜치 삭제를 그 자리에서 항상 수행.
-- worktree 오케스트레이터(예: Orca) 사용 시: worktree 생성·정리는 해당 도구에 위임 —
-  오케스트레이터가 소유한 worktree 를 수동 `git worktree add`/`remove` 로 만지지 않는다
-  (도구 상태와 어긋남). 격리 원칙(1세션 = 1worktree = 1이슈 = 1브랜치)은 동일하게
-  적용되며, "머지 후 제거" 규칙은 오케스트레이터의 자체 정리로 충족한다.
+- 머지 후 worktree 제거 + 로컬 브랜치 삭제를 그 자리에서. worktree 오케스트레이터(Orca 등)가
+  소유한 worktree 는 수동으로 만지지 않고 도구 정리에 위임한다.
 
-역할별 에이전트: `.claude/agents/sdlc-*.md` (developer/tester/verifier).
-SDLC 자동화: `/sdlc-cycle` 명령 참조.
+역할별 에이전트: `.claude/agents/sdlc-*.md` (developer/tester/verifier). SDLC 자동화: `/sdlc-cycle`.
