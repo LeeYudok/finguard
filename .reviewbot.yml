@@ -1,0 +1,11 @@
+# review-bot 레포 오버라이드 — gitlab.doksam.com busan/finguard 미러에서 2차 리뷰 시 사용.
+# 프로젝트 맥락 문서를 리뷰 프롬프트에 포함해 제약 위반을 근거와 함께 지적하게 한다.
+context_files:
+  - AGENTS.md
+  - CONTEXT.md
+extra_rules:
+  - "로그에 소스코드 본문·webhook payload 본문을 남기면 P0 (AGENTS.md 「스택 · 제약」)."
+  - "코멘트 근거(basis/kisa_item)를 매핑 테이블 밖에서 생성하면 P0 (CONTEXT.md 결정 사항)."
+ignore:
+  - "vendor/**"
+  - "testdata/**"

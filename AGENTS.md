@@ -273,6 +273,9 @@ block_on: [ERROR, WARNING]
 이슈 등록 → `feat/issue-<N>-<slug>` 브랜치 → 구현 → pre-commit 게이트 → PR(`Closes #N`) → 리뷰 → squash 머지.
 GitHub 는 `Closes #N` 으로 머지 시 자동 클로즈된다.
 
+**2차 리뷰 미러**: `gitlab.doksam.com/busan/finguard` 는 review-bot 용 미러다. GitHub 머지 후 `git push gitlab main` 으로 갱신하고,
+review-bot 리뷰가 필요하면 브랜치를 `gitlab` 리모트에 푸시해 GitLab 에 MR 을 연다(설정은 루트 `.reviewbot.yml`). (#86)
+
 ## 멀티 에이전트 · 병렬 세션
 
 공유 체크아웃을 쓰던 병렬 세션 두 개가 서로의 작업을 교차오염시킨 사고에서 나온 규칙이다.
