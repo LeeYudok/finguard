@@ -19,7 +19,9 @@
 
 ## P1 — 필수
 
-- **이슈 우선**: 작업은 이슈 트래커에 이슈 등록 → 번호를 브랜치/커밋/PR·MR에 박는다. trivial typo만 예외.
+- **작업 지시서 우선**: 작업은 이슈(배경·목표·설계·검증·결과 판정자) 등록 → 번호를 브랜치/커밋/PR·MR에 박는다. 한 줄 요청은 이슈 초안으로 바꿔 확인받은 뒤 착수. trivial typo만 예외. `[자동강제: pre-commit 브랜치명 issue-N 검사 — FINGUARD_SKIP_ISSUE_GATE=1 로 우회]`
+- **1이슈 = 1세션**: 이슈 클로즈 후 다음 이슈는 `/clear` 후 새 세션. (#84)
+- **컨텍스트 40~50% 에서 HANDOFF**: `ai-sdlc-skills-handoff` 로 재개 가능한 `HANDOFF.md` 작성 후 새 세션 재개. compaction 은 안전망. 긴 tool output 은 파일/subagent 로 격리. `[규율]`
 - **git 동사 즉시 실행**: "푸시/머지/커밋/싱크/풀/배포" 명령엔 바로 실행. 파괴적 git만 별도 확인.
 - **commit 직전 브랜치 재확인**: 자동 프로세스가 `main` 으로 checkout 했을 수 있음.
 - **브랜치 전략**: `main`(prod) / `develop`(통합) / `feature·fix·chore`(작업) / `hotfix`(main 직접).

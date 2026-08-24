@@ -5,6 +5,9 @@
 
 @.claude/memory/MEMORY.md
 
+**왜 이렇게 생겼나**(결정 사항·비목표·수용한 리스크)는 [`CONTEXT.md`](CONTEXT.md) — 구현 전에 한 번 읽는다.
+디렉터리 소유 규약은 해당 디렉터리의 `AGENTS.md`(현재 `rules/`, `testdata/rule-fixtures/`).
+
 매 세션 항상 로드되는 파일이므로 **프로젝트 고유 사실만** 둔다. 경로별 세부 규약은
 `.claude/rules/`(스코프 로드), 절차는 `.claude/skills/`, 사고 회고는 `.claude/memory/` 에 있다.
 
@@ -26,7 +29,7 @@
 | `agents/` | 서브에이전트 정의 (code-reviewer, security-audit, db-migration, sdlc-*, agent-evolve) | [README](.claude/agents/README.md) |
 | `commands/` | 커스텀 슬래시 커맨드 (fix-issue, sdlc-cycle, sonar, knowledge-graph) | [README](.claude/commands/README.md) |
 | `hooks/` | 강제 게이트 — pre-commit, 자동 포맷, observe-lite, 메모리 리마인드 | [README](.claude/hooks/README.md) |
-| `memory/` | 프로젝트 메모리 SSOT — MEMORY.md 인덱스 + 타입접두 파일 | [README](.claude/memory/README.md) |
+| `memory/` | 사고 회고·피드백 메모리(파일). 코드·문서 장기 기억은 graphify(`graphify-out/`, 아래 참조) | [README](.claude/memory/README.md) |
 | `rules/` | 맥락 인지 룰 — `paths:` 스코프 조건부 로드 | [README](.claude/rules/README.md) |
 | `skills/` | 상황별 절차 — review, status, search-first, memory-factcheck, security-precheck, grill-me 등 | [README](.claude/skills/README.md) |
 | `workflows/` | 저장형 Workflow 오케스트레이션 스크립트(`*.js`) — rules-audit 예제 | [README](.claude/workflows/README.md) |
@@ -59,10 +62,20 @@ semgrep --validate --config rules/   # 룰 문법 검증
 go test -race -mod=vendor -tags semgrep_integration ./internal/scanner/  # 룰 픽스처 통합 테스트
 ```
 
-## 코드 탐색 — CodeGraph
+## 코드 탐색 · 장기 기억 — CodeGraph + graphify
 
-이 레포는 CodeGraph 로 인덱싱돼 있다(`.codegraph/`, 전역 gitignore 로 커밋 제외).
-코드 위치를 찾거나 흐름을 파악할 때 grep/find 보다 먼저 쓴다.
+장기 기억 도구는 **graphify 하나**로 통일한다(`graphify-out/`, gitignore). 코드·문서·이슈 이력을 한
+그래프로 들고 있으므로 "왜 이렇게 됐나"·"뭐가 뭘 참조하나" 류 질문은 grep 전에 여기부터.
+`.claude/memory/` 파일은 사고 회고·피드백처럼 그래프가 추출 못 하는 것만 남긴다.
+
+```bash
+graphify . --backend ollama --model qwen3.6:35b   # 최초 빌드 (로컬 Ollama, 외부 전송 없음)
+graphify . --update                               # 변경분만 재추출
+graphify query "<질문>"                           # 세션 시작 시 컨텍스트 확보
+```
+
+코드 심볼 단위 탐색은 CodeGraph(`.codegraph/`, 전역 gitignore). 코드 위치를 찾거나 호출
+흐름을 파악할 때 grep/find 보다 먼저 쓴다.
 
 ```bash
 codegraph explore "<질문 또는 심볼명>"   # 관련 심볼 소스 + 호출 경로 한 번에
@@ -230,11 +243,18 @@ block_on: [ERROR, WARNING]
 - 실제 GitLab 호출은 통합 테스트로 분리. 기본 `go test`에서 제외.
 - **Semgrep 룰·픽스처 규약**(`EXPECT:` 마커, `safe_` 대조군, `.semgrepignore` 유지,
   시크릿 형태 픽스처의 GitHub 시크릿 스캐닝 제외, 전역 exclude 와 룰 `paths` 의 스코프 소유)은
-  [`.claude/rules/rule-fixtures.md`](.claude/rules/rule-fixtures.md) — `rules/`·
-  `testdata/rule-fixtures/`·`internal/scanner/` 편집 시 자동 로드된다. 룰을 만들거나 고치기 전에 읽을 것.
+  디렉터리 소유 문서 [`rules/AGENTS.md`](rules/AGENTS.md). Claude Code 는 `rules/`·
+  `testdata/rule-fixtures/`·`internal/scanner/` 편집 시 스텁 룰이 자동 로드돼 그 파일로 안내한다.
 
 ## 작업 방식
 
+- **모든 작업은 작업 지시서(이슈)에서 시작한다.** 한 줄 요청("X 최적화해줘")이 오면 구현에 들어가지
+  말고 배경·목표·설계·검증·**결과 판정자**를 채운 이슈 초안을 먼저 만들어 사용자 확인을 받는다.
+  `pre-commit` 훅이 브랜치명에 `issue-<N>` 이 없으면 커밋을 막는다(`FINGUARD_SKIP_ISSUE_GATE=1` 로 typo 예외).
+- **1이슈 = 1세션.** 이슈를 닫으면 다음 이슈는 `/clear` 후 새 세션에서. 다음 이슈를 파는 것까지만 현 세션.
+- **컨텍스트 40~50% 에서 HANDOFF.** `ai-sdlc-skills-handoff` 로 재개 가능한 `HANDOFF.md`(이슈·브랜치·
+  worktree·검증 원문·미결 판단·다음 명령)를 쓰고 새 세션에서 재개. compaction 은 안전망일 뿐.
+  긴 tool output 은 파일로 보내고 `tail`/요약만 받거나 subagent 로 격리한다.
 - 한 번에 한 패키지씩. 완료 후 빌드와 테스트 통과를 확인하고 다음으로 넘어간다.
 - 스펙이 불확실하면 추측하지 말고 질문한다. 특히 SARIF 필드명, rdjsonl 필드명, GitLab API 응답 구조는 실물 확인 없이 지어내지 말 것.
 - skill/agent 신규 생성 시 `finguard-` prefix 네임스페이스.
@@ -247,7 +267,7 @@ block_on: [ERROR, WARNING]
 | 등급 | 내용 | 위반 시 |
 | :--- | :--- | :--- |
 | **P0** | 시크릿 노출 금지 · prod 파괴 쿼리 사전 동의 · `force push`/`reset --hard` 확인 · 인증 없는 엔드포인트 금지 | 즉시 중단, 사용자 에스컬레이션 |
-| **P1** | 이슈 번호를 브랜치·커밋·PR 제목에 · pre-commit 게이트 통과 · 새 기능엔 테스트 1개 이상 · `main`/`develop` 직접 커밋 금지 | PR 차단 |
+| **P1** | 작업 지시서(이슈)에서 시작 · 이슈 번호를 브랜치·커밋·PR 제목에 · pre-commit 게이트 통과 · 새 기능엔 테스트 1개 이상 · `main`/`develop` 직접 커밋 금지 | PR 차단 |
 | **P2** | 함수 CC 15 이하 · 파일 300줄 초과 시 분리 검토 · TODO/FIXME 에 이슈 번호 | 리뷰 지적 |
 
 이슈 등록 → `feat/issue-<N>-<slug>` 브랜치 → 구현 → pre-commit 게이트 → PR(`Closes #N`) → 리뷰 → squash 머지.

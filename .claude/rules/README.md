@@ -25,7 +25,7 @@ paths:
 | **[common.md](common.md)** | *항상 로드* | 우선순위 티어, 워크플로, 시크릿 취급, 소통 |
 | **[security.md](security.md)** | 백엔드+프론트 소스, 설정 파일 | 시크릿/인증 P0, public env 시크릿 금지, 록아웃 |
 | **[testing.md](testing.md)** | 테스트 파일 | 기능당 1테스트(P1), mock 단위 우선, 사용자 관점 어설션 |
-| **[rule-fixtures.md](rule-fixtures.md)** | `rules/**`, `testdata/rule-fixtures/**`, `internal/scanner/**` | Semgrep 룰 회귀 픽스처 규약 — EXPECT 마커·safe_ 대조군·시크릿 픽스처·스코프 소유 (#84) |
+| **[rule-fixtures.md](rule-fixtures.md)** | `rules/**`, `testdata/rule-fixtures/**`, `internal/scanner/**` | 스텁 — 본문은 `rules/AGENTS.md`(디렉터리 소유, 타 에이전트도 읽음) (#84) |
 | **[data.md](data.md)** | `data/` 스크립트 | 대량 데이터 스테이징 금지(P0), 인코딩 명시, OOM 방지 |
 | forge 프리셋 추가 **forge.md** | *항상 로드* | forge 별 이슈/PR·MR 절차 |
 | 스택 프리셋 추가 **`<stack>.md`** | 스택 소스 glob | 스택별 컨벤션 |

@@ -10,6 +10,18 @@ if printf '%s\n' "$staged" | grep -qE '(^|/)\.env($|\.)'; then
   exit 2
 fi
 
+# --- Common: work starts from an issue (AGENTS.md 「작업 방식」, #84) ---
+branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "")
+case "$branch" in
+  main|develop|HEAD) ;;  # merges/detached: not gated here (P1 forbids direct commits separately)
+  *issue-[0-9]*) ;;
+  *)
+    if [ "${FINGUARD_SKIP_ISSUE_GATE:-}" != "1" ]; then
+      echo "차단: 브랜치명 '$branch' 에 issue-<N> 이 없음. 작업 지시서(이슈)부터 만들고 <type>/issue-<N>-<slug> 브랜치에서 커밋할 것. (typo 예외: FINGUARD_SKIP_ISSUE_GATE=1)" >&2
+      exit 2
+    fi ;;
+esac
+
 # --- STACK CHECKS (presets append here) ---
 # --- Go build + vet gate ---
 if [ -f go.mod ]; then
