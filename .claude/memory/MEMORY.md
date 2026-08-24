@@ -14,3 +14,4 @@
 - [제목](project_xxx.md) — 한 줄 훅
 -->
 - [graphify 로컬 Ollama 함정](project_graphify-local-ollama.md) — `[ollama]` extra 필수, 리즈닝 모델은 hollow 응답, vendor/testdata 는 .graphifyignore 로 제외
+- [GitLab 미러 = review-bot 2차 리뷰](project_gitlab-mirror-review-bot.md) — busan/finguard 는 미러(SSOT 아님), 머지 후 `git push gitlab main`, 리뷰는 GitLab MR 로
