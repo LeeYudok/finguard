@@ -31,6 +31,19 @@ rules:
           - metavariable-regex:
               metavariable: $C
               regex: (?i)^(c|ctx|gctx|ectx|gc|ec)$
+      # Gin의 ShouldBind*는 반환값이 아니라 포인터 인자를 채운다. 바인딩된
+      # 구조체만 side-effect source로 지정해 일반 함수 인자 오탐을 만들지 않는다(#88).
+      - patterns:
+          - pattern-either:
+              - pattern: $C.ShouldBindJSON(&$DST)
+              - pattern: $C.ShouldBindQuery(&$DST)
+              - pattern: $C.ShouldBindUri(&$DST)
+              - pattern: $C.ShouldBindHeader(&$DST)
+          - metavariable-regex:
+              metavariable: $C
+              regex: (?i)^(c|ctx|gctx|g|gc)$
+          - focus-metavariable: $DST
+        by-side-effect: true
       - pattern: $OPT.StringValue()
     pattern-sinks:
       - patterns:
