@@ -55,6 +55,12 @@ rules:
       - pattern-not-regex: '(?im)^[ \t]*(?:export[ \t]+)?(-[ \t]+)?["'']?[\w.-]+["'']?[ \t]*[:=][ \t]*["''`]?(\*{3,}|x{3,}|•{3,}|\.{4,}|#{3,}|_{4,}|redacted|change[_-]?me|placeholder|dummy|your[_-][\w-]*|todo|fixme)["''`]?[ \t]*[,;)]*[ \t]*(?:#.*|//.*)?$'
       # 국내 샘플 코드의 표준 관용구인 한국어 안내문은 시크릿이 아니라 입력 지시문이다 (#23).
       - pattern-not-regex: '(?im)^[^\n]*[:=][ \t]*["''`]?[^"''`\n]*(입력[ \t]*(?:하세요|해[ \t]*주세요|해주세요|바랍니다|하십시오)|여기에?[ \t]*입력|발급[ \t]*받은|본인의|자신의|예시|샘플)[^\n]*$'
+      # Fetch 표준 옵션 `credentials` 의 열거값은 시크릿이 아니라 정책 지시자다 (#90).
+      # RequestCredentials = omit | same-origin | include — 쿠키를 어느 범위 요청에 실을지
+      # 정하는 값이라 노출돼도 잃을 것이 없고, same-origin 은 오히려 전송 범위를 좁힌다.
+      # 식별자를 credentials 로, 값을 표준 열거값 셋으로 못박아 좁게 억제한다 — credential
+      # 어휘를 쓰는 실제 시크릿(credentialSecret = "..." 등)은 그대로 탐지된다.
+      - pattern-not-regex: '(?i)\bcredentials\s*:\s*["'']?(omit|same-origin|include)["'']?'
 
   # 테스트 코드 시크릿 (#25 의 이원화 정책을 TS 에 적용 — #70).
   # 운영 룰과 어휘·억제는 같고 값 형태 조건만 강하다(길이·문자 구성이 실제 자격증명 형태일 때만).

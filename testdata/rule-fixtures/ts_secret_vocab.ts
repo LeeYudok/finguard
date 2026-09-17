@@ -74,3 +74,11 @@ const accessToken = process.env.ACCESS_TOKEN;
 const privateKey = loadPrivateKey();
 
 declare function loadPrivateKey(): string;
+
+// credentials 억제(#90)는 Fetch 표준 열거값에만 적용된다 — credential 어휘를 쓰는
+// 실제 자격증명은 그대로 탐지돼야 한다.
+// EXPECT: finguard.ts.hardcoded-secret
+const credentialSecret = "prod-credential-9f3a7c21";
+
+// EXPECT: finguard.ts.hardcoded-secret
+const credentials = "admin:SuperSecret2026!";
